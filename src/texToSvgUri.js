@@ -1,3 +1,5 @@
+const { memoize } = require('./util');
+
 const texToSvg = (() => {
     const { mathjax } = require('mathjax-full/js/mathjax.js');
     const { TeX } = require('mathjax-full/js/input/tex.js');
@@ -32,11 +34,11 @@ const texToSvg = (() => {
     }
 })();
 
-function texToSvgUri (texString, display) {
-    const {svg, width} = texToSvg(texString, display);
+const texToSvgUri = memoize((texString, display) => {
+    const { svg, width } = texToSvg(texString, display);
     const svgDataUri = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
     console.log(svgDataUri);
     return { uri: svgDataUri, width: width };
-}
+});
 
 module.exports = { texToSvgUri };

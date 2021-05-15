@@ -1,13 +1,14 @@
 const vscode = require('vscode');
-const { posToRange, DefaultMap } = require('../util');
+const { posToRange, DefaultMap, urlToUri } = require('../util');
 const { state } = require('../state');
 
 class ImageComment {
     constructor(url) {
         this.mode = vscode.CommentMode.Preview;
         this.author = { name: "" };
-        console.log("Image comment: ", url)
-        const parsedUri = vscode.Uri.parse(url);
+        console.log("Image comment: ", [url])
+        const parsedUri = urlToUri(url);
+        console.log("Image comment:", parsedUri)
         this.body = new vscode.MarkdownString(`[![inlinePreview](${parsedUri})](${parsedUri})`);
     }
 }
@@ -23,7 +24,7 @@ function showInlineImages() {
     const lastImageThreadMap = imageThreadMap.get(documentUri.toString());
     const newImageThreadMap = new Map();
     
-    const regEx = /!\[([^\]]*)\]\((https?:\/\/[^ ]+)\)/g;
+    const regEx = /!\[([^\]]*)\]\((.+?)\)/g;
     let match;
     while ((match = regEx.exec(state.text))) {
         console.log("Image comment: match ", match);
@@ -40,7 +41,9 @@ function showInlineImages() {
         } else {
             const thread = commentController.createCommentThread(documentUri, matchRange, [new ImageComment(url)]);
             thread.canReply = false;
-            thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+            if (state.config.get('inlineImage.autoPreview')) {
+                thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+            }
             thread.label = match[1];
             newImageThreadMap.set(key, thread);
         }

@@ -4,6 +4,30 @@ const vscode = require('vscode');
 const { state } = require('./state');
 const { triggerUpdateDecorations, DefaultMap } = require('./util');
 
+function bootstrap() {
+	state.activeEditor = vscode.window.activeTextEditor;
+	state.selection = state.activeEditor.selection;
+	if (state.activeEditor) {
+        if (state.activeEditor.document.languageId == "markdown") {
+			triggerUpdateDecorations();
+        } else {
+            state.activeEditor = undefined;
+        }
+	}
+}
+
+function toggle() {
+	if (state.enabled) {
+		for (let decoration of state.decorationRanges.keys()) {
+			state.activeEditor.setDecorations(decoration, []);
+		}
+		state.enabled = false;
+	} else {
+		state.enabled = true;
+		bootstrap();
+	}
+}
+
 // this method is called when the extension is activated
 // the extension is activated the very first time the command is executed
 
@@ -11,32 +35,33 @@ const { triggerUpdateDecorations, DefaultMap } = require('./util');
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+	state.enabled = true;
 	state.context = context;
-	state.activeEditor = vscode.window.activeTextEditor;
+	state.context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle))
 	state.decorationRanges = new DefaultMap(()=>[]);
+	state.config = vscode.workspace.getConfiguration("markdown.wysiwyg");
+	state.darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
+	state.fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
 
 	state.decorators = [
-		require('./decorators/code.js'),
-		require('./decorators/emphasis.js'),
-		require('./decorators/heading.js'),
-		require('./decorators/horizontal-rule.js'),
-		require('./decorators/inline-image.js'),
-		require('./decorators/latex.js'),
-		require('./decorators/list.js'),
-		require('./decorators/quote.js'),
-		require('./decorators/url.js'),
-	]
+		['emphasis', './decorators/emphasis.js'],
+		['heading', './decorators/heading.js'],
+		['horizontalRule', './decorators/horizontal-rule.js'],
+		['inlineCode', './decorators/inline-code.js'],
+		['inlineImage.enabled', './decorators/inline-image.js'],
+		['latex', './decorators/latex.js'],
+		['list', './decorators/list.js'],
+		['quote', './decorators/quote.js'],
+		['url', './decorators/url.js'],
+	].filter(e => state.config.get(e[0]))
+		.map(e => require(e[1]));
 
-	require('./hover-image.js')();
+	if (state.config.get('hoverImage')) {
+		require('./hover-image.js')();
+	}
 	require('./reveal-line.js')();
 
-	if (state.activeEditor) {
-        if (state.activeEditor.document.languageId == "markdown") {
-		triggerUpdateDecorations();
-        } else {
-            state.activeEditor = undefined;
-        }
-	}
+	bootstrap();
 
 	vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 		console.log("onDidChangeTextEditorVisibleRanges");
@@ -61,10 +86,30 @@ function activate(context) {
 			triggerUpdateDecorations();
 		}
 	}, null, state.context.subscriptions);
+
+	vscode.workspace.onDidChangeConfiguration(e => {
+		if (['markdown.wysiwyg', 'workbench.colorTheme', 'editor.fontSize'].some(c=>e.affectsConfiguration(c))) {
+			if (!state.context) return;
+			for (let subscription of state.context.subscriptions) {
+				subscription.dispose();
+			}
+			// Clear old decorations
+			toggle(); toggle();
+			activate(state.context);
+		}
+	}, null, state.context.subscriptions);
+
+	vscode.window.onDidChangeTextEditorSelection((e) => {
+		if (state.activeEditor) {
+			state.selection = e.selections[0];
+			triggerUpdateDecorations();
+		}
+	}, null, state.context.subscriptions)
 }
 
 // this method is called when the extension is deactivated
-function deactivate() { }
+function deactivate() {
+}
 
 module.exports = {
 	activate,

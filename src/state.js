@@ -1,6 +1,4 @@
 const vscode = require('vscode');
-// eslint-disable-next-line no-unused-vars
-// const { DefaultMap } = require('./util');
 
 /**
  * @type {vscode.TextEditor}
@@ -23,7 +21,7 @@ const text = undefined;
 const context = undefined;
 
 /**
- * @type {DefaultMap}
+ * @type {Map<vscode.TextEditorDecorationType, vscode.Range[]>}
  */
 const decorationRanges = undefined;
 
@@ -32,9 +30,43 @@ const decorationRanges = undefined;
  */
 const decorators = undefined;
 
-const darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
-const fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
+/**
+ * @type {vscode.WorkspaceConfiguration}
+ */
+const config = undefined;
 
-const state = { activeEditor, offset, text, context, decorationRanges, darkMode, fontSize, decorators };
+/**
+ * @type {boolean}
+ */
+const darkMode = undefined;
+
+/**
+ * @type {number}
+ */
+const fontSize = undefined;
+
+/**
+ * @type {vscode.Selection}
+ */
+const selection = undefined;
+
+/**
+ * @type {boolean}
+ */
+const enabled = undefined;
+
+const state = {
+    activeEditor,
+    offset,
+    text,
+    context,
+    decorationRanges,
+    darkMode,
+    fontSize,
+    decorators,
+    config,
+    selection,
+    enabled
+};
 
 module.exports = { state };

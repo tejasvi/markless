@@ -32,9 +32,25 @@ function posToRange(start, end) {
     return new vscode.Range(rangeStart, rangeEnd);
 }
 
+function urlToUri(url) {
+    if (url.includes(":")) {
+        if (url.match(/^[A-Z]:\\[^\\]/)) {
+            return vscode.Uri.file(url);
+        } else {
+            return vscode.Uri.parse(url, true);
+        }
+    } else {
+        const cwd = vscode.workspace.workspaceFolders[0].uri;
+        return vscode.Uri.joinPath(cwd, url);
+    }
+}
+
 function setDecorations() {
     for (let [decoration, ranges] of state.decorationRanges) {
         console.log("decoration RANGES", [decoration, ranges]);
+        if (state.config.cursorDisables) {
+            ranges = ranges.filter((r) => !state.selection.intersection(r));
+        }
         state.activeEditor.setDecorations(decoration, ranges);
         if (ranges.length == 0) {
             state.decorationRanges.delete(decoration); // Unused decoration. Still exist in memoized decoration provider
@@ -67,6 +83,7 @@ function updateDecorations() {
 
 let timeout;
 function triggerUpdateDecorations() {
+    if (!state.enabled) return;
     console.log("triggerUpdateDecorations");
     if (timeout) {
         clearTimeout(timeout);
@@ -76,4 +93,4 @@ function triggerUpdateDecorations() {
 }
 
 
-module.exports = { DefaultMap, memoize, posToRange, triggerUpdateDecorations };
+module.exports = { DefaultMap, memoize, posToRange, triggerUpdateDecorations, urlToUri };

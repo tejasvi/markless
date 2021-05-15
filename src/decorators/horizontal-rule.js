@@ -16,7 +16,7 @@ function decorateHorizontalRule() {
     let match;
     while ((match = regEx.exec(state.text))) {
         console.log("HR: ", match);
-        state.decorationRanges.get(horizontalRuleDecoration).push(posToRange(match.index, match.index + match[0].length));
+        state.decorationRanges.get(horizontalRuleDecoration).push(posToRange(match.index, match.index + match[0].length - 1));
     }
 }
 

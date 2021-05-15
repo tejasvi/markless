@@ -6,7 +6,7 @@ const { memoize, posToRange } = require('../util');
 const getUrlDecoration = memoize((isImage) => vscode.window.createTextEditorDecorationType({
     color: "transparent",
     textDecoration: "none; display: inline-block; width: 0;",
-    after: {
+    before: {
         contentText: isImage ? "🌄" : " 🔗",
         fontWeight: "bold",
         color: "cyan",
@@ -15,7 +15,7 @@ const getUrlDecoration = memoize((isImage) => vscode.window.createTextEditorDeco
 
 function decorateURL() {
     const decorationRanges = state.decorationRanges;
-    const regEx = /(!?)(\[)[^\]]*(\])(\(https?:\/\/[^ ]+\))/mg;
+    const regEx = /(!?)(\[)[^\]]*(\])(\(.+?\))/mg;
     let match;
     while ((match = regEx.exec(state.text))) {
         console.log(`URL match: ${match}`, match);
