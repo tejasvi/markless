@@ -30,7 +30,7 @@ const getlistRainbowDecoration = (() => {
 function decorateLists() {
     console.log("decorate list");
     const decorationRanges = state.decorationRanges;
-    const regEx = /^( *)(\*|-|\d+)\.? (.*)/mg;
+    const regEx = /^( *)(\*|-|\d+)(?:\.|\))? (.*)/mg;
     let match;
     while ((match = regEx.exec(state.text))) {
         console.log(`match: ${match}`, match);

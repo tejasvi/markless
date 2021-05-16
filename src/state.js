@@ -55,6 +55,11 @@ const selection = undefined;
  */
 const enabled = undefined;
 
+/**
+ * @type {number}
+ */
+const changeRangeOffset = undefined;
+
 const state = {
     activeEditor,
     offset,
@@ -66,7 +71,8 @@ const state = {
     decorators,
     config,
     selection,
-    enabled
+    enabled,
+    changeRangeOffset
 };
 
 module.exports = { state };

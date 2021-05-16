@@ -24,21 +24,25 @@ const texToSvg = (() => {
     const svg = new SVG({ fontCache: 'local' });
     const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
 
-    return (texString, display) => {
-        const node = html.convert(texString, { display: display, em: 16, ex: 8, containerWidth: 80 * 16 });
+    return (texString, display, fontSize) => {
+        const node = html.convert(texString, { display: display });
+        const attributes = node.children[0].attributes;
+        for (let param of ["height", "width"]) {
+            attributes[param] = String(parseFloat(attributes[param]) * fontSize / 16) + "ex";
+        }
         console.log(node);
-        const width = node.children[0].attributes.viewBox.split(' ')[2];
-        let svg = adaptor.innerHTML(node);
-        svg = svg.replace(/<defs>/, `<defs><style>${CSS}</style>`);
-        return { svg: svg, width: width };
+        let svgElement = adaptor.innerHTML(node);
+        svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
+        return svgElement;
     }
 })();
 
-const texToSvgUri = memoize((texString, display) => {
-    const { svg, width } = texToSvg(texString, display);
+const texToSvgUri = memoize((texString, display, fontSize) => {
+    const svg = texToSvg(texString, display, fontSize);
+    console.log("SVG", svg);
     const svgDataUri = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
     console.log(svgDataUri);
-    return { uri: svgDataUri, width: width };
+    return svgDataUri;
 });
 
 module.exports = { texToSvgUri };

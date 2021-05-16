@@ -6,9 +6,9 @@ const { triggerUpdateDecorations, DefaultMap } = require('./util');
 
 function bootstrap() {
 	state.activeEditor = vscode.window.activeTextEditor;
-	state.selection = state.activeEditor.selection;
 	if (state.activeEditor) {
         if (state.activeEditor.document.languageId == "markdown") {
+			state.selection = state.activeEditor.selection;
 			triggerUpdateDecorations();
         } else {
             state.activeEditor = undefined;
@@ -45,7 +45,7 @@ function activate(context) {
 
 	state.decorators = [
 		['emphasis', './decorators/emphasis.js'],
-		['heading', './decorators/heading.js'],
+		// ['heading', './decorators/heading.js'],
 		['horizontalRule', './decorators/horizontal-rule.js'],
 		['inlineCode', './decorators/inline-code.js'],
 		['inlineImage.enabled', './decorators/inline-image.js'],
@@ -83,7 +83,11 @@ function activate(context) {
 	vscode.workspace.onDidChangeTextDocument(event => {
 		console.log("onDidChangeTextDocument");
 		if (state.activeEditor && event.document === state.activeEditor.document) {
+			if (event.contentChanges.length == 1) {
+				state.changeRangeOffset = event.contentChanges[0].rangeOffset;
+			}
 			triggerUpdateDecorations();
+			state.changeRangeOffset = undefined;
 		}
 	}, null, state.context.subscriptions);
 
@@ -94,7 +98,9 @@ function activate(context) {
 				subscription.dispose();
 			}
 			// Clear old decorations
-			toggle(); toggle();
+			if (state.activeEditor){
+				toggle(); toggle();
+			}
 			activate(state.context);
 		}
 	}, null, state.context.subscriptions);

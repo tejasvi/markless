@@ -4,14 +4,13 @@ const { state } = require('../state');
 const { texToSvgUri } = require('../texToSvgUri');
 const { hideDecoration } = require('../common-decorations');
 
-const getTexDecoration = memoize((texString, display, darkMode) => {
-    const svg = texToSvgUri(texString, display);
+const getTexDecoration = memoize((texString, display, darkMode, fontSize) => {
+    const svgUri = texToSvgUri(texString, display, fontSize);
     return vscode.window.createTextEditorDecorationType({
         color: "transparent",
         textDecoration: "none; display: inline-block; width: 0;",
         before: {
-            contentIconPath: vscode.Uri.parse(svg.uri),
-            width: svg.width,
+            contentIconPath: vscode.Uri.parse(svgUri),
             textDecoration: `none;${darkMode? " filter: invert(1)" : ""}`,
         },
     })
@@ -23,7 +22,7 @@ function decorateTex () {
     const decorationRanges = state.decorationRanges;
     while ((match = regEx.exec(state.text))) {
         console.log("TEX: ", match);
-        decorationRanges.get(getTexDecoration(match[2], match[1].length == 2, state.darkMode)).push(posToRange(match.index + 1, match.index + match[0].length - 1));
+        decorationRanges.get(getTexDecoration(match[2], match[1].length == 2, state.darkMode, state.fontSize)).push(posToRange(match.index + 1, match.index + match[0].length - 1));
         decorationRanges.get(hideDecoration).push(posToRange(match.index, match.index + 1));
         decorationRanges.get(hideDecoration).push(posToRange(match.index + match[0].length - 1, match.index + match[0].length));
     }
