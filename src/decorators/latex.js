@@ -1,8 +1,9 @@
 const vscode = require('vscode');
-const { memoize, posToRange, svgToUri } = require('../util');
+const { memoize, svgToUri } = require('../util');
 const { state } = require('../state');
 const { texToSvg } = require('../texToSvg');
 const { hideDecoration } = require('../common-decorations');
+const { posToRange } = require('../runner');
 
 const getTexDecoration = memoize((texString, display, darkMode, fontSize) => {
     const svgUri = svgToUri(texToSvg(texString, display, fontSize));

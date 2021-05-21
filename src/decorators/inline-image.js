@@ -1,6 +1,7 @@
 const vscode = require('vscode');
-const { posToRange, DefaultMap, urlToUri } = require('../util');
+const { DefaultMap, urlToUri } = require('../util');
 const { state } = require('../state');
+const { posToRange } = require('../runner');
 
 class ImageComment {
     constructor(url) {

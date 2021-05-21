@@ -1,6 +1,6 @@
 const vscode = require('vscode');
+const { posToRange } = require('../runner');
 const { state } = require('../state');
-const { posToRange } = require('../util');
 
 const quoteDecoration = vscode.window.createTextEditorDecorationType({
     textDecoration: "none; filter: drop-shadow(0px 0px 20px);",
