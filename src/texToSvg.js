@@ -1,5 +1,3 @@
-const { memoize } = require('./util');
-
 const texToSvg = (() => {
     const { mathjax } = require('mathjax-full/js/mathjax.js');
     const { TeX } = require('mathjax-full/js/input/tex.js');
@@ -24,12 +22,11 @@ const texToSvg = (() => {
     const svg = new SVG({ fontCache: 'local' });
     const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
 
-    return (texString, display, fontSize) => {
+    return (texString, display, fontSize, height) => {
         const node = html.convert(texString, { display: display });
         const attributes = node.children[0].attributes;
-        for (let param of ["height", "width"]) {
-            attributes[param] = String(parseFloat(attributes[param]) * fontSize / 16) + "ex";
-        }
+        attributes["width"] = `${parseFloat(attributes["width"]) * fontSize / 16}ex`;
+        attributes["height"] = `${height}px`;
         console.log(node);
         let svgElement = adaptor.innerHTML(node);
         svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
@@ -37,12 +34,4 @@ const texToSvg = (() => {
     }
 })();
 
-const texToSvgUri = memoize((texString, display, fontSize) => {
-    const svg = texToSvg(texString, display, fontSize);
-    console.log("SVG", svg);
-    const svgDataUri = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
-    console.log(svgDataUri);
-    return svgDataUri;
-});
-
-module.exports = { texToSvgUri };
+module.exports = { texToSvg };
