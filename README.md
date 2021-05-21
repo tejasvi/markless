@@ -41,9 +41,11 @@ Make it look like work is being done. `Thread.sleep(4000);` Everytime reduce the
 
 ### LaTeX
 
-$$
+$a+b$
+
+$$$hidden
 {x} = \int_{-\infty}^\infty\hat\xi\,e^{2 \pi i \xi x} \,d\xi
-$$ 
+$$$
 
 $$
 \text{Expand} (a+b)^n:
@@ -66,7 +68,7 @@ $$
 
 ### Emphasis
 
-A boy owned a dog that was uncommonly **shaggy** . Many people remarked upon its considerable _shagginess_ . When the boy learned that there are contests for **shaggy** dogs, he entered his dog. The dog won first prize for _shagginess_ in both the local and the regional competitions. The boy entered the dog in ever-larger contests, until finally he entered it in the world championship for **shaggy** dogs. When the judges had inspected all of the competing dogs, they remarked about the boy's dog: "He's not that **shaggy** ."
+A boy owned a dog that was uncommonly **shaggy**. Many people remarked upon its considerable _shagginess_ . When the boy learned that there are contests for **shaggy** dogs, he entered his dog. The dog won first prize for _shagginess_ in both the local and the regional competitions. The boy entered the dog in ever-larger contests, until finally he entered it in the world championship for **shaggy** dogs. When the judges had inspected all of the competing dogs, they remarked about the boy's dog: "He's not that **shaggy** ."
 
 ### Blockquotes
 

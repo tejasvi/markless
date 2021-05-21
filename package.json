@@ -72,7 +72,7 @@
         "title": "Markdown WYSIWYG",
         "properties": {
           "markdown.wysiwyg.emphasis": {
-            "description": "Decorate bold and italics",
+            "description": "Decorate bold, italics and strikethrough",
             "type": "boolean",
             "default": true
           },
@@ -116,7 +116,17 @@
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.url": {
+          "markdown.wysiwyg.table": {
+            "description": "Render tables",
+            "type": "boolean",
+            "default": true
+          },
+          "markdown.wysiwyg.html": {
+            "description": "Decorate HTML tags",
+            "type": "boolean",
+            "default": true
+          },
+          "markdown.wysiwyg.link": {
             "description": "Decorate link and image urls",
             "type": "boolean",
             "default": true
@@ -142,7 +152,7 @@
     "remark-gfm": "^1.0.0",
     "remark-math": "^4.0.0",
     "remark-parse": "^9.0.0",
-    "unified": "^9.2.1",
+    "unified": "^9.2.1"
   },
   "scripts": {
     "lint": "eslint .",
