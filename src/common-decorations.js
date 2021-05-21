@@ -1,4 +1,5 @@
 const vscode = require('vscode');
+const { memoize } = require('./util');
 
 const hideDecoration = vscode.window.createTextEditorDecorationType({
     color: "transparent",
@@ -10,4 +11,13 @@ const transparentDecoration = vscode.window.createTextEditorDecorationType({
     color: "transparent",
 });
 
-module.exports = { hideDecoration, transparentDecoration };
+const getUrlDecoration = memoize((isImage) => vscode.window.createTextEditorDecorationType({
+    color: "transparent",
+    textDecoration: "none; display: inline-block; width: 0;",
+    before: {
+        contentText: isImage ? "🌄" : " 🔗",
+        fontWeight: "bold",
+        color: "cyan",
+    },
+}));
+module.exports = { hideDecoration, transparentDecoration, getUrlDecoration };

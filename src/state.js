@@ -1,7 +1,5 @@
-const vscode = require('vscode');
-
 /**
- * @type {vscode.TextEditor}
+ * @type {import('vscode').TextEditor}
  */
 const activeEditor = undefined;
 
@@ -16,12 +14,12 @@ const offset = undefined;
 const text = undefined;
 
 /**
- * @type {vscode.ExtensionContext}
+ * @type {import('vscode').ExtensionContext}
  */
 const context = undefined;
 
 /**
- * @type {Map<vscode.TextEditorDecorationType, vscode.Range[]>}
+ * @type {Map<import('vscode').TextEditorDecorationType, import('vscode').Range[]>}
  */
 const decorationRanges = undefined;
 
@@ -31,7 +29,7 @@ const decorationRanges = undefined;
 const decorators = undefined;
 
 /**
- * @type {vscode.WorkspaceConfiguration}
+ * @type {import('vscode').WorkspaceConfiguration}
  */
 const config = undefined;
 
@@ -46,7 +44,17 @@ const darkMode = undefined;
 const fontSize = undefined;
 
 /**
- * @type {vscode.Selection}
+ * @type {string}
+ */
+const fontFamily = undefined;
+
+/**
+ * @type {number}
+ */
+const lineHeight = undefined;
+
+/**
+ * @type {import('vscode').Selection}
  */
 const selection = undefined;
 
@@ -60,6 +68,27 @@ const enabled = undefined;
  */
 const changeRangeOffset = undefined;
 
+/**
+ * @type {any}//Map<string, (start: number, end: number, node?: import("unist").Node, listLevel?: number) => void>}
+ */
+const types = undefined;
+
+/**
+ * @type {Boolean}
+ */
+const autoImagePreview = undefined;
+
+
+/**
+ * @type {import('vscode').CommentController}
+ */
+const commentController = undefined;
+
+/**
+ * @type {Array<[import('vscode').Range, string, string]>}
+ */
+const imageList = undefined;
+
 const state = {
     activeEditor,
     offset,
@@ -68,10 +97,16 @@ const state = {
     decorationRanges,
     darkMode,
     fontSize,
+    fontFamily,
+    lineHeight,
     decorators,
     config,
     selection,
     enabled,
+    types,
+    autoImagePreview,
+    commentController,
+    imageList,
     changeRangeOffset
 };
 

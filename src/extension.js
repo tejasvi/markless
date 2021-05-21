@@ -1,8 +1,11 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in the code below
 const vscode = require('vscode');
+const { hideDecoration, transparentDecoration, getUrlDecoration } = require('./common-decorations');
 const { state } = require('./state');
-const { triggerUpdateDecorations, DefaultMap } = require('./util');
+const { texToSvg } = require('./texToSvg');
+const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap } = require('./util');
+const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner')
 
 function bootstrap() {
 	state.activeEditor = vscode.window.activeTextEditor;
@@ -28,33 +31,253 @@ function toggle() {
 	}
 }
 
-// this method is called when the extension is activated
-// the extension is activated the very first time the command is executed
+function setState(context){
+    state.enabled = true;
+    state.context = context;
+    state.context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle));
+    state.decorationRanges = new DefaultMap(() => []);
+    state.config = vscode.workspace.getConfiguration("markdown.wysiwyg");
+    state.darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
+    state.fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
+    state.fontFamily = vscode.workspace.getConfiguration("editor").get("fontFamily", "Courier New");
+	if (!state.imageList) state.imageList = [];
+
+    const lineHeight = vscode.workspace.getConfiguration("editor").get("lineHeight", 0);
+    // https://github.com/microsoft/vscode/blob/45aafeb326d0d3d56cbc9e2932f87e368dbf652d/src/vs/editor/common/config/fontInfo.ts#L54
+    if (lineHeight === 0) {
+        state.lineHeight = Math.round(process.platform == "darwin" ? 1.5 : 1.35 * state.fontSize);
+    } else if (lineHeight < 8) {
+        state.lineHeight = 8;
+    }
+    state.autoImagePreview = state.config.get('inlineImage.autoPreview');
+
+    state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
+    state.context.subscriptions.push(state.commentController);
+
+	// @ts-ignore
+	state.types = new Map([
+		["heading", ["heading", (() => {
+			const getEnlargeDecoration = memoize((size) => vscode.window.createTextEditorDecorationType({
+				textDecoration: `; font-size: ${size}px; position: relative; top: 0.3em;`,
+			}));
+			return (start, end, node) => {
+				console.log("Heading node", node);
+				addDecoration(getEnlargeDecoration(8 * state.fontSize / (2 + node.depth)), start + node.depth + 1, end);
+				addDecoration(hideDecoration, start, start + node.depth + 1);
+			};
+		})()]],
+		["horizontalRule", ["thematicBreak", (() => {
+			const horizontalRuleDecoration = vscode.window.createTextEditorDecorationType({
+				color: "transparent",
+				textDecoration: "none; display: inline-block; width: 0;",
+				before: {
+					contentText: "",
+					textDecoration: "none; position: absolute; background: #ffaa00; top: 0.49em; bottom: 0.49em; width: 100%; mix-blend-mode: luminosity;",
+				}
+			});
+			return (start, end) => {
+				addDecoration(horizontalRuleDecoration, start, end);
+			};
+		})()]],
+		["quote", ["blockquote", (() => {
+			const quoteDecoration = vscode.window.createTextEditorDecorationType({
+				textDecoration: "none; filter: drop-shadow(0px 0px 20px);",
+			});
+			const quoteBarDecoration = vscode.window.createTextEditorDecorationType({
+				color: "transparent",
+				before: {
+					contentText: "",
+					textDecoration: "none; position: absolute; background: #ffaa00; top: -0.2em; bottom: -0.2em; width: 3px; border-radius: 99px; mix-blend-mode: luminosity;",
+				}
+			});
+			return (start, end) => {
+				addDecoration(quoteDecoration, start, end);
+				const text = state.text.slice(start, end);
+				const regEx = /^ {0,3}>/mg;
+				let match;
+				while ((match = regEx.exec(text))) {
+					console.log("Quote: ", match);
+					addDecoration(quoteBarDecoration, start + match.index + match[0].length - 1, start + match.index + match[0].length);
+				}
+			};
+		})()]],
+		["list", ["listItem", (() => {
+			const getBulletDecoration = memoize((level) => {
+				const listBullets = ["❧", "☯", "♠", "❀", "♚", "☬", "♣", "♥", "🙤", "⚜", "⚛", "⛇", "⚓", "☘", "☔"];
+				return vscode.window.createTextEditorDecorationType({
+					color: "transparent",
+					textDecoration: "none; display: inline-block; width: 0;",
+					after: {
+						contentText: listBullets[level % listBullets.length],
+						fontWeight: "bold"
+					},
+				});
+			});
+			const getCheckedDecoration = memoize((checked) => {
+				return vscode.window.createTextEditorDecorationType({
+					color: "transparent",
+					textDecoration: "none; display: inline-block; width: 0;",
+					after: {
+						contentText: checked ? "☑" : "☐ ",
+						fontWeight: "bold"
+					},
+				});
+			});
+			const getlistRainbowDecoration = (() => {
+				const hueRotationMultiplier = [0, 5, 9, 2, 6, 7];
+				const getNonCyclicDecoration = memoize((level) => vscode.window.createTextEditorDecorationType({
+					textDecoration: (`; filter: hue-rotate(${hueRotationMultiplier[level] * 360 / 12}deg);`),
+				}));
+				return (level) => {
+					level = level % hueRotationMultiplier.length;
+					return getNonCyclicDecoration(level);
+				};
+			})();
+			return (start, _end, node, listLevel) => {
+				console.log("decorate list", listLevel);
+				if (node.children.length === 0) return;
+				const textPosition = node.children[0].position;
+				const textStart = textPosition.start.offset;
+				const textEnd = textPosition.end.offset;
+				addDecoration(node.checked == null ? getBulletDecoration(listLevel) : getCheckedDecoration(node.checked), start, textStart - 1);
+				addDecoration(getlistRainbowDecoration(listLevel), textStart, textEnd);
+			};
+		})()]],
+		["latex", ["math", (() => {
+			const getTexDecoration = (() => {
+				const _getTexDecoration = memoize((texString, display, darkMode, fontSize, height) => {
+					const svgUri = svgToUri(texToSvg(texString, display, fontSize, height));
+					return vscode.window.createTextEditorDecorationType({
+						color: "transparent",
+						textDecoration: "none; display: inline-block; width: 0;",
+						before: {
+							contentIconPath: vscode.Uri.parse(svgUri),
+							textDecoration: `none;${darkMode ? " filter: invert(1)" : ""}`,
+						},
+					});
+				});
+				return (texString, display, numLines) => _getTexDecoration(texString, display, state.darkMode, state.fontSize, (numLines + 0.5) * state.lineHeight);
+			})();
+			return (start, end) => {
+				const latexText = state.text.slice(start, end);
+				const match = /^(\$+)([^]+)\1/.exec(latexText);
+				if (!match) return;
+				console.log("math", latexText);
+				addDecoration(hideDecoration, start, start + match[1].length);
+				addDecoration(hideDecoration, end - match[1].length, end);
+				const numLines = 1 + (match[2].match(/\n/g)||[]).length;
+				addDecoration(getTexDecoration(match[2], match[1].length > 1, numLines), start + match[1].length, end - match[1].length );
+			};
+		})()]],
+		["latex", ["inlineMath", (start, end) => state.types.get("math")(start, end)]],
+		["emphasis", ["emphasis", (start, end) => {
+			addDecoration(hideDecoration, start, start + 1);
+			addDecoration(hideDecoration, end - 1, end);
+		}]],
+		["emphasis", ["strong", (start, end) => {
+			addDecoration(hideDecoration, start, start + 2);
+			addDecoration(hideDecoration, end - 2, end);
+		}]],
+		["inlineCode", ["inlineCode", (() => {
+			const codeDecoration = vscode.window.createTextEditorDecorationType({
+				// outline: "1px dotted"
+				border: "outset",
+				borderRadius: "5px",
+			})
+			return (start, end) => {
+				addDecoration(codeDecoration, start, end);
+				addDecoration(transparentDecoration, start, start + 1);
+				addDecoration(transparentDecoration, end - 1, end);
+			};
+		})()]],
+		["link", ["link", (start, end) => {
+			const text = state.text.slice(start, end);
+			const match = /\[(.+)\]\(.+?\)/.exec(text);
+			addDecoration(hideDecoration, start, start + 1);
+			addDecoration(getUrlDecoration(false), start + match[1].length + 1, end);
+		}]],
+		["html", ["html", (() => {
+			const htmlDecoration = vscode.window.createTextEditorDecorationType({
+				color: "transparent",
+				textDecoration: "none; display: inline-block; width: 0;",
+				before: {
+					contentText: "</>",
+					fontWeight: "bold",
+					color: "cyan",
+				},
+			})
+			return (start, end) => {
+				addDecoration(htmlDecoration, start, end);
+			}
+		})()]],
+		["link", ["image", (start, end, node) => {
+			const text = state.text.slice(start, end);
+			const match = /!\[(.+)\]\(.+?\)/.exec(text);
+			if (!match) return;
+			addDecoration(hideDecoration, start, start + 2);
+			addDecoration(getUrlDecoration(true), start + match[1].length + 2, end);
+			state.imageList.push([posToRange(start, end), node.url, node.alt]);
+		}]],
+		["emphasis", ["delete", (() => {
+			const strikeDecoration = vscode.window.createTextEditorDecorationType({
+				textDecoration: "line-through"
+			});
+			return (start, end) => {
+				addDecoration(hideDecoration, start, start + 2);
+				addDecoration(hideDecoration, end - 2, end);
+				addDecoration(strikeDecoration, start + 2, end - 2);
+			};
+		})()]],
+		["table", ["table", (() => {
+			const getTableDecoration = memoize((html, darkMode, fontFamily, fontSize, lineHeight) => {
+				const css = `
+				table { border-collapse: collapse; }
+				td, th { border: ridge; }
+				body {
+					font-family:${fontFamily.replace(/(?<!\\)"/g, "'")};
+					font-size: ${fontSize}px;
+				}
+				`;
+				const numRows = 1 + (html.match(/<tr>/g) || []).length;
+				const maxLength = Math.max(...(html.match(/<tr>[^]+?<\/tr>/g) || [""]).map(e => e.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "").length));
+				const tableUri = svgToUri(htmlToSvg(numRows * lineHeight, maxLength * fontSize, html, css));
+				return vscode.window.createTextEditorDecorationType({
+					color: "transparent",
+					textDecoration: "none; display: inline-block; width: 0;",
+					before: {
+						contentIconPath: vscode.Uri.parse(tableUri),
+						textDecoration: `none;${darkMode ? " filter: invert(1)" : ""}`,
+					},
+				});
+			});
+			return (start, end, node) => {
+				const html = nodeToHtml(node);
+				addDecoration(getTableDecoration(html, state.darkMode, state.fontFamily, state.fontSize, state.lineHeight), start, end);
+			};
+		})()]]
+	// @ts-ignore
+	].filter(e=>state.config.get(e[0])).map(e => e[1]));
+}
 
 /**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-	state.enabled = true;
-	state.context = context;
-	state.context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle))
-	state.decorationRanges = new DefaultMap(()=>[]);
-	state.config = vscode.workspace.getConfiguration("markdown.wysiwyg");
-	state.darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
-	state.fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
+	setState(context);
 
-	state.decorators = [
-		['emphasis', './decorators/emphasis.js'],
-		// ['heading', './decorators/heading.js'],
-		['horizontalRule', './decorators/horizontal-rule.js'],
-		['inlineCode', './decorators/inline-code.js'],
-		['inlineImage.enabled', './decorators/inline-image.js'],
-		['latex', './decorators/latex.js'],
-		['list', './decorators/list.js'],
-		['quote', './decorators/quote.js'],
-		['url', './decorators/url.js'],
-	].filter(e => state.config.get(e[0]))
-		.map(e => require(e[1]));
+	// state.decorators = [
+	// 	 ['emphasis', './decorators/emphasis.js'],
+	// 	 ['heading', './decorators/heading.js'],
+	// 	 ['horizontalRule', './decorators/horizontal-rule.js'],
+	// 	 ['inlineCode', './decorators/inline-code.js'],
+	// 	 ['inlineImage.enabled', './decorators/inline-image.js'],
+	// 	 ['latex', './decorators/latex.js'],
+	// 	 ['list', './decorators/list.js'],
+	// 	 ['quote', './decorators/quote.js'],
+	// 	 ['url', './decorators/url.js'],
+	// ].filter(e => state.config.get(e[0]))
+	// 	.map(e => require(e[1]));
+
 
 	if (state.config.get('hoverImage')) {
 		require('./hover-image.js')();
@@ -65,7 +288,7 @@ function activate(context) {
 
 	vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 		console.log("onDidChangeTextEditorVisibleRanges");
-		if (state.activeEditor && event.textEditor.document === state.activeEditor.document) {
+		if (state.activeEditor && state.activeEditor.document.lineCount > 500 && event.textEditor.document === state.activeEditor.document) {
 			triggerUpdateDecorations();
 		}
 	}, null, state.context.subscriptions);
@@ -113,11 +336,6 @@ function activate(context) {
 	}, null, state.context.subscriptions)
 }
 
-// this method is called when the extension is deactivated
-function deactivate() {
-}
-
 module.exports = {
 	activate,
-	deactivate
 };

@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const { state } = require('./state');
-const { texToSvgUri } = require('./texToSvgUri');
+const { texToSvg } = require('./texToSvg');
+const { svgToUri } = require('./util');
 
 function enableLineRevealAsSignature() {
     state.context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('markdown', {
@@ -15,7 +16,7 @@ function enableLineRevealAsSignature() {
             let match;
             while ((match = texRegEx.exec(state.text))) {
                 if (match.index <= visibleRangePos && visibleRangePos <= match.index + match[0].length) {
-                    latexElement = `![latexPreview](${texToSvgUri(match[2]).uri})`;
+                    latexElement = `![latexPreview](${svgToUri(texToSvg(match[2]))})`;
                     break;
                 }
             }
