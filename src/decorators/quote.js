@@ -17,7 +17,7 @@ const quoteBarDecoration = vscode.window.createTextEditorDecorationType({
 
 function decorateQuote() {
     const decorationRanges = state.decorationRanges;
-    const regEx = /^(\s*)> .*/mg;
+    const regEx = /^( {0,3})>(?: .*)?/mg;
     let match;
     while ((match = regEx.exec(state.text))) {
         console.log("Quote: ", match);

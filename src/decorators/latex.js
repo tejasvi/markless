@@ -1,11 +1,11 @@
 const vscode = require('vscode');
-const { memoize, posToRange } = require('../util');
+const { memoize, posToRange, svgToUri } = require('../util');
 const { state } = require('../state');
-const { texToSvgUri } = require('../texToSvgUri');
+const { texToSvg } = require('../texToSvg');
 const { hideDecoration } = require('../common-decorations');
 
 const getTexDecoration = memoize((texString, display, darkMode, fontSize) => {
-    const svgUri = texToSvgUri(texString, display, fontSize);
+    const svgUri = svgToUri(texToSvg(texString, display, fontSize));
     return vscode.window.createTextEditorDecorationType({
         color: "transparent",
         textDecoration: "none; display: inline-block; width: 0;",
