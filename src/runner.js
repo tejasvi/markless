@@ -71,11 +71,11 @@ function setDecorations() {
     addInlineImages();
 }
 
-function visitNodes(node) {
+async function visitNodes(node) {
     const stack = [[node, 0]];
     while (stack.length) {
         let [curNode, listLevel] = stack.pop()
-        const dec = state.types.get(curNode.type);
+        const dec = await state.types.get(curNode.type);
         const position = curNode.position;
         if (dec) {
             dec(position.start.offset, position.end.offset, curNode, listLevel);
@@ -133,7 +133,8 @@ function constructDecorations(range) {
         state.offset = 0;
     }
     const node = parser(state.text);
-    console.log("PARSING", node, visitNodes(node), nodeToHtml(node));
+    visitNodes(node).then(setDecorations);
+    console.log("PARSING", node, nodeToHtml(node));
     // for (let decorator of state.decorators) {
     //     decorator();
     // }
@@ -153,7 +154,6 @@ function updateDecorations() {
     } else {
         constructDecorations();
     }
-    setDecorations();
     console.log("updateDecorationsEnd");
 }
 

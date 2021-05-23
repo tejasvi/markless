@@ -1,11 +1,13 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in the code below
 const vscode = require('vscode');
-const { hideDecoration, transparentDecoration, getUrlDecoration } = require('./common-decorations');
+const { hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration } = require('./common-decorations');
 const { state } = require('./state');
 const { texToSvg } = require('./texToSvg');
 const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap } = require('./util');
-const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner')
+const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner');
+const cheerio = require('cheerio');
+const { default: axios } = require('axios');
 
 function bootstrap() {
 	state.activeEditor = vscode.window.activeTextEditor;
@@ -147,14 +149,7 @@ function setState(context){
 			const getTexDecoration = (() => {
 				const _getTexDecoration = memoize((texString, display, darkMode, fontSize, height) => {
 					const svgUri = svgToUri(texToSvg(texString, display, fontSize, height));
-					return vscode.window.createTextEditorDecorationType({
-						color: "transparent",
-						textDecoration: "none; display: inline-block; width: 0;",
-						before: {
-							contentIconPath: vscode.Uri.parse(svgUri),
-							textDecoration: `none;${darkMode ? " filter: invert(1)" : ""}`,
-						},
-					});
+					return getSvgDecoration(svgUri, darkMode);
 				});
 				return (texString, display, numLines) => _getTexDecoration(texString, display, state.darkMode, state.fontSize, (numLines + 0.5) * state.lineHeight);
 			})();
@@ -163,10 +158,8 @@ function setState(context){
 				const match = /^(\$+)([^]+)\1/.exec(latexText);
 				if (!match) return;
 				console.log("math", latexText);
-				addDecoration(hideDecoration, start, start + match[1].length);
-				addDecoration(hideDecoration, end - match[1].length, end);
 				const numLines = 1 + (match[2].match(/\n/g)||[]).length;
-				addDecoration(getTexDecoration(match[2], match[1].length > 1, numLines), start + match[1].length, end - match[1].length );
+				addDecoration(getTexDecoration(match[2], match[1].length > 1, numLines), start, end);
 			};
 		})()]],
 		["latex", ["inlineMath", (start, end) => state.types.get("math")(start, end)]],
@@ -190,9 +183,49 @@ function setState(context){
 				addDecoration(transparentDecoration, end - 1, end);
 			};
 		})()]],
+		["mermaid", ["code", (() => {
+			const getMermaidDecoration = (() => {
+				const _getTexDecoration = memoize(async (source, darkMode, height) => {
+					const mermaidSource = JSON.stringify({
+						code: source,
+						mermaid: {theme: darkMode? "dark":"default"}
+					})
+					const url = `https://mermaid.ink/svg/${Buffer.from(mermaidSource).toString('base64').replace("+", "-").replace("/", "_")}`;
+					const response = await axios.get(url, { responseType: 'arraybuffer' });
+					if (response.status != 200) {
+						console.log("Can't reach mermaid", source, url);
+						return;
+					}
+					const svgNode = cheerio.load(Buffer.from(response.data, 'binary').toString())('svg');
+					const maxWidth = parseFloat(svgNode.css('max-width')) * height / parseFloat(svgNode.attr('height'));
+					const svg = svgNode
+						.css('max-width', `${maxWidth}px`)
+						.attr('height', `${height}px`)
+						.attr("preserveAspectRatio", "xMinYMin meet")
+						.toString()
+					const svgUri = svgToUri(svg);
+					console.log("SSSSSSSVVVVGGGG:  ")
+					console.log('%c ', `font-size:400px; background:url(${svgUri}) no-repeat; background-size: contain;`);
+					return getSvgDecoration(svgUri, darkMode);
+				});
+				return (source, numLines) => _getTexDecoration(source, state.darkMode, (numLines + 2) * state.lineHeight);
+			})();
+			return async (start, end, node) => {
+				if (!(node.lang === "mermaid")) return;
+				const match = state.text.slice(start, end).match(/^(.)(\1{2,}).*?\n([^]+)\n\1{3,}$/);
+				if (!match) return;
+				const source = match[3]
+					, numLines = 1 + (source.match(/\n/g) || []).length;
+				const decoration = await getMermaidDecoration(source, numLines);
+				if (decoration) {
+					addDecoration(decoration, start, end);
+				}
+			};
+		})()]],
 		["link", ["link", (start, end) => {
 			const text = state.text.slice(start, end);
 			const match = /\[(.+)\]\(.+?\)/.exec(text);
+			if (!match) return;
 			addDecoration(hideDecoration, start, start + 1);
 			addDecoration(getUrlDecoration(false), start + match[1].length + 1, end);
 		}]],
@@ -203,7 +236,7 @@ function setState(context){
 				before: {
 					contentText: "</>",
 					fontWeight: "bold",
-					color: "cyan",
+					textDecoration: "none; font-size: xx-small; vertical-align: middle;",
 				},
 			})
 			return (start, end) => {

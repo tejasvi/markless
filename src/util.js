@@ -50,7 +50,7 @@ function svgToUri(svg) {
 
 function htmlToSvg(height, width, html, css) {
     return `
-    <svg width="${width}" height="${height}" style="border:1px red solid;overflow: visible;" xmlns="http://www.w3.org/2000/svg"><foreignObject class="node" x="0" y="0" width="100%" height="100%"><body xmlns="http://www.w3.org/1999/xhtml">
+    <svg width="${width}" height="${height}" style="overflow: visible;" xmlns="http://www.w3.org/2000/svg"><foreignObject class="node" x="0" y="0" width="100%" height="100%"><body xmlns="http://www.w3.org/1999/xhtml">
     <style>${css ? css : ""}</style>
     ${html}
     </body></foreignObject></svg>`

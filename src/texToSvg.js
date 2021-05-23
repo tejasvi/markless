@@ -27,6 +27,7 @@ const texToSvg = (() => {
         const attributes = node.children[0].attributes;
         attributes["width"] = `${parseFloat(attributes["width"]) * fontSize / 16}ex`;
         attributes["height"] = `${height}px`;
+        attributes.preserveAspectRatio = "xMinYMin meet";
         console.log(node);
         let svgElement = adaptor.innerHTML(node);
         svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);

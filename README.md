@@ -177,6 +177,10 @@ However unlike them, VS Code has a large ecosystem of extensions for:
 | --- | --- |
 | bar | baz |
 
+```mermaid
+graph
+a
+```
 
 
 * [Vim bindings](https://github.com/asvetliakov/vscode-neovim/)
