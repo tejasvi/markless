@@ -185,6 +185,9 @@ function setState(context){
 		})()]],
 		["mermaid", ["code", (() => {
 
+			let resolveSvg, requestSvg;
+			let resolveWebviewLoad;
+			const webviewLoaded = new Promise(resolve => { resolveWebviewLoad = resolve;})
 			context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
 				resolveWebviewView: (webviewView, webviewContext, _token) => {
 					webviewView.webview.options = { enableScripts: true, localResourceRoots: [ context.extensionUri ]};
@@ -199,7 +202,7 @@ function setState(context){
 						console.log("WEBVIEW ENTER");
 
 						const vscode = acquireVsCodeApi();
-						vscode.postMessage("WEBVIEW POST FROM WEBVIEW");
+						// vscode.postMessage("WEBVIEW POST FROM WEBVIEW");
 						window.addEventListener('message', event => {
 							const data = event.data;
 							mermaid.mermaidAPI.initialize({
@@ -217,39 +220,51 @@ function setState(context){
 						</html>
 						`;
 					webviewView.show();
-					webviewView.webview.onDidReceiveMessage(data => {
-						console.log("WEBVIEW RECIEVE FROM webview", data);
+					webviewView.webview.onDidReceiveMessage((svgString) => {
+						console.log(svgString);
+						resolveSvg(svgString);
 					}, null, context.subscriptions);
-					context.subscriptions.push(
-						vscode.commands.registerCommand('test.eval', () => {
-							vscode.window.showInputBox().then(s => {
-								s = s.replace(/\\n/g, "\n");
-								webviewView.webview.postMessage({
-									source: s,
-									darkMode: false,
-									fontFamily: `'Operator Pro', 'Bookerly', Consolas, 'Courier New', monospace`,
-								});
-							});
-						}));
+					requestSvg = x=>webviewView.webview.postMessage(x);
+					resolveWebviewLoad();
+					// webviewView.webview.onDidReceiveMessage(data => {
+					// 	console.log("WEBVIEW RECIEVE FROM webview", data);
+					// 	resolveSvg();
+					// }, null, context.subscriptions);
+					// context.subscriptions.push(
+					// 	vscode.commands.registerCommand('test.eval', () => {
+					// 		vscode.window.showInputBox().then(s => {
+					// 			s = s.replace(/\\n/g, "\n");
+					// 			webviewView.webview.postMessage({
+					// 				source: s,
+					// 				darkMode: false,
+					// 				fontFamily: `'Operator Pro', 'Bookerly', Consolas, 'Courier New', monospace`,
+					// 			});
+					// 		});
+					// 	}));
 				}
 			}, { webviewOptions: {retainContextWhenHidden: true}}));
 
-
-
-
 			const getMermaidDecoration = (() => {
-				const _getTexDecoration = memoize(async (source, darkMode, height) => {
-					const mermaidSource = JSON.stringify({
-						code: source,
-						mermaid: {theme: darkMode? "dark":"default"}
-					})
-					const url = `https://mermaid.ink/svg/${Buffer.from(mermaidSource).toString('base64').replace("+", "-").replace("/", "_")}`;
-					const response = await axios.get(url, { responseType: 'arraybuffer' });
-					if (response.status != 200) {
-						console.log("Can't reach mermaid", source, url);
-						return;
-					}
-					const svgNode = cheerio.load(Buffer.from(response.data, 'binary').toString())('svg');
+				const _getTexDecoration = memoize(async (source, darkMode, height, fontFamily) => {
+					await webviewLoaded;
+					// const mermaidSource = JSON.stringify({
+					// 	code: source,
+					// 	mermaid: {theme: darkMode? "dark":"default"}
+					// })
+					// const url = `https://mermaid.ink/svg/${Buffer.from(mermaidSource).toString('base64').replace("+", "-").replace("/", "_")}`;
+					// const response = await axios.get(url, { responseType: 'arraybuffer' });
+					// if (response.status != 200) {
+					// 	console.log("Can't reach mermaid", source, url);
+					// 	return;
+					// }
+					// const svgNode = cheerio.load(Buffer.from(response.data, 'binary').toString())('svg');
+					requestSvg({
+						source: source,
+						darkMode: darkMode,
+						fontFamily: fontFamily
+					});
+					const svgString = await new Promise(resolve => { resolveSvg = resolve; });
+					const svgNode = cheerio.load(svgString)('svg');
 					const maxWidth = parseFloat(svgNode.css('max-width')) * height / parseFloat(svgNode.attr('height'));
 					const svg = svgNode
 						.css('max-width', `${maxWidth}px`)
@@ -261,7 +276,7 @@ function setState(context){
 					console.log('%c ', `font-size:400px; background:url(${svgUri}) no-repeat; background-size: contain;`);
 					return getSvgDecoration(svgUri, darkMode);
 				});
-				return (source, numLines) => _getTexDecoration(source, state.darkMode, (numLines + 2) * state.lineHeight);
+				return (source, numLines) => _getTexDecoration(source, state.darkMode, (numLines + 2) * state.lineHeight, state.fontFamily);
 			})();
 			return async (start, end, node) => {
 				if (!(node.lang === "mermaid")) return;
