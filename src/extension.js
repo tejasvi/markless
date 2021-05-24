@@ -184,6 +184,59 @@ function setState(context){
 			};
 		})()]],
 		["mermaid", ["code", (() => {
+
+			context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
+				resolveWebviewView: (webviewView, webviewContext, _token) => {
+					webviewView.webview.options = { enableScripts: true, localResourceRoots: [ context.extensionUri ]};
+					const mermaidScriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'));
+					webviewView.webview.html = `
+					<!DOCTYPE html>
+					<html lang="en">
+						<body>
+						<script src="${mermaidScriptUri}"></script> <!-- https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js -->
+						<h1>Webview</h1>
+						<script>
+						console.log("WEBVIEW ENTER");
+
+						const vscode = acquireVsCodeApi();
+						vscode.postMessage("WEBVIEW POST FROM WEBVIEW");
+						window.addEventListener('message', event => {
+							const data = event.data;
+							mermaid.mermaidAPI.initialize({
+								theme: data.darkMode? "dark":"default",
+								fontFamily: data.fontFamily,
+								startOnLoad: false
+							});
+							console.log("init done");
+							console.log("WEBVIEW RECIEVE FROM EXTENSION", event)
+							vscode.postMessage(mermaid.mermaidAPI.render('mermaid', data.source));
+						});
+
+						</script>
+						</body>
+						</html>
+						`;
+					webviewView.show();
+					webviewView.webview.onDidReceiveMessage(data => {
+						console.log("WEBVIEW RECIEVE FROM webview", data);
+					}, null, context.subscriptions);
+					context.subscriptions.push(
+						vscode.commands.registerCommand('test.eval', () => {
+							vscode.window.showInputBox().then(s => {
+								s = s.replace(/\\n/g, "\n");
+								webviewView.webview.postMessage({
+									source: s,
+									darkMode: false,
+									fontFamily: `'Operator Pro', 'Bookerly', Consolas, 'Courier New', monospace`,
+								});
+							});
+						}));
+				}
+			}, { webviewOptions: {retainContextWhenHidden: true}}));
+
+
+
+
 			const getMermaidDecoration = (() => {
 				const _getTexDecoration = memoize(async (source, darkMode, height) => {
 					const mermaidSource = JSON.stringify({
@@ -297,20 +350,6 @@ function setState(context){
  */
 function activate(context) {
 	setState(context);
-
-	// state.decorators = [
-	// 	 ['emphasis', './decorators/emphasis.js'],
-	// 	 ['heading', './decorators/heading.js'],
-	// 	 ['horizontalRule', './decorators/horizontal-rule.js'],
-	// 	 ['inlineCode', './decorators/inline-code.js'],
-	// 	 ['inlineImage.enabled', './decorators/inline-image.js'],
-	// 	 ['latex', './decorators/latex.js'],
-	// 	 ['list', './decorators/list.js'],
-	// 	 ['quote', './decorators/quote.js'],
-	// 	 ['url', './decorators/url.js'],
-	// ].filter(e => state.config.get(e[0]))
-	// 	.map(e => require(e[1]));
-
 
 	if (state.config.get('hoverImage')) {
 		require('./hover-image.js')();
