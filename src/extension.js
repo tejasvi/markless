@@ -7,7 +7,6 @@ const { texToSvg } = require('./texToSvg');
 const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap } = require('./util');
 const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner');
 const cheerio = require('cheerio');
-const { default: axios } = require('axios');
 
 function bootstrap() {
 	state.activeEditor = vscode.window.activeTextEditor;
@@ -74,7 +73,7 @@ function setState(context){
 				textDecoration: "none; display: inline-block; width: 0;",
 				before: {
 					contentText: "",
-					textDecoration: "none; position: absolute; background: #ffaa00; top: 0.49em; bottom: 0.49em; width: 100%; mix-blend-mode: luminosity;",
+					textDecoration: "none; position: absolute; background: #ffaa00; top: 0.49em; bottom: 0.49em; width: 100%; mix-blend-mode: luminosity; border: outset;",
 				}
 			});
 			return (start, end) => {
@@ -83,7 +82,7 @@ function setState(context){
 		})()]],
 		["quote", ["blockquote", (() => {
 			const quoteDecoration = vscode.window.createTextEditorDecorationType({
-				textDecoration: "none; filter: drop-shadow(0px 0px 20px);",
+				textDecoration: "none; filter: drop-shadow(0px 0px 40px);",
 			});
 			const quoteBarDecoration = vscode.window.createTextEditorDecorationType({
 				color: "transparent",
@@ -151,14 +150,14 @@ function setState(context){
 					const svgUri = svgToUri(texToSvg(texString, display, fontSize, height));
 					return getSvgDecoration(svgUri, darkMode);
 				});
-				return (texString, display, numLines) => _getTexDecoration(texString, display, state.darkMode, state.fontSize, (numLines + 0.5) * state.lineHeight);
+				return (texString, display, numLines) => _getTexDecoration(texString, display, state.darkMode, state.fontSize, numLines * state.lineHeight);
 			})();
 			return (start, end) => {
 				const latexText = state.text.slice(start, end);
 				const match = /^(\$+)([^]+)\1/.exec(latexText);
 				if (!match) return;
 				console.log("math", latexText);
-				const numLines = 1 + (match[2].match(/\n/g)||[]).length;
+				const numLines = 1 + (latexText.match(/\n/g)||[]).length;
 				addDecoration(getTexDecoration(match[2], match[1].length > 1, numLines), start, end);
 			};
 		})()]],
@@ -186,10 +185,12 @@ function setState(context){
 		["mermaid", ["code", (() => {
 
 			let resolveSvg, requestSvg;
-			let resolveWebviewLoad;
-			const webviewLoaded = new Promise(resolve => { resolveWebviewLoad = resolve;})
+			let resolveWebviewLoaded;
+			const webviewLoaded = new Promise(resolve => { resolveWebviewLoaded = resolve; });
+			vscode.commands.executeCommand('workbench.view.extension.markdownWysiwyg')
+				.then(() => vscode.commands.executeCommand('workbench.view.explorer'));
 			context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
-				resolveWebviewView: (webviewView, webviewContext, _token) => {
+				resolveWebviewView: (webviewView) => {
 					webviewView.webview.options = { enableScripts: true, localResourceRoots: [ context.extensionUri ]};
 					const mermaidScriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'));
 					webviewView.webview.html = `
@@ -197,12 +198,10 @@ function setState(context){
 					<html lang="en">
 						<body>
 						<script src="${mermaidScriptUri}"></script> <!-- https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js -->
-						<h1>Webview</h1>
 						<script>
 						console.log("WEBVIEW ENTER");
 
 						const vscode = acquireVsCodeApi();
-						// vscode.postMessage("WEBVIEW POST FROM WEBVIEW");
 						window.addEventListener('message', event => {
 							const data = event.data;
 							mermaid.mermaidAPI.initialize({
@@ -219,51 +218,22 @@ function setState(context){
 						</body>
 						</html>
 						`;
-					webviewView.show();
+					webviewView.show(true);
 					webviewView.webview.onDidReceiveMessage((svgString) => {
 						console.log(svgString);
 						resolveSvg(svgString);
 					}, null, context.subscriptions);
 					requestSvg = x=>webviewView.webview.postMessage(x);
-					resolveWebviewLoad();
-					// webviewView.webview.onDidReceiveMessage(data => {
-					// 	console.log("WEBVIEW RECIEVE FROM webview", data);
-					// 	resolveSvg();
-					// }, null, context.subscriptions);
-					// context.subscriptions.push(
-					// 	vscode.commands.registerCommand('test.eval', () => {
-					// 		vscode.window.showInputBox().then(s => {
-					// 			s = s.replace(/\\n/g, "\n");
-					// 			webviewView.webview.postMessage({
-					// 				source: s,
-					// 				darkMode: false,
-					// 				fontFamily: `'Operator Pro', 'Bookerly', Consolas, 'Courier New', monospace`,
-					// 			});
-					// 		});
-					// 	}));
+					resolveWebviewLoaded();
 				}
 			}, { webviewOptions: {retainContextWhenHidden: true}}));
 
 			const getMermaidDecoration = (() => {
 				const _getTexDecoration = memoize(async (source, darkMode, height, fontFamily) => {
 					await webviewLoaded;
-					// const mermaidSource = JSON.stringify({
-					// 	code: source,
-					// 	mermaid: {theme: darkMode? "dark":"default"}
-					// })
-					// const url = `https://mermaid.ink/svg/${Buffer.from(mermaidSource).toString('base64').replace("+", "-").replace("/", "_")}`;
-					// const response = await axios.get(url, { responseType: 'arraybuffer' });
-					// if (response.status != 200) {
-					// 	console.log("Can't reach mermaid", source, url);
-					// 	return;
-					// }
-					// const svgNode = cheerio.load(Buffer.from(response.data, 'binary').toString())('svg');
-					requestSvg({
-						source: source,
-						darkMode: darkMode,
-						fontFamily: fontFamily
-					});
-					const svgString = await new Promise(resolve => { resolveSvg = resolve; });
+					const svgRecieved = new Promise(resolve => { resolveSvg = resolve; });
+					requestSvg({ source: source, darkMode: darkMode, fontFamily: fontFamily });
+					const svgString = await svgRecieved;
 					const svgNode = cheerio.load(svgString)('svg');
 					const maxWidth = parseFloat(svgNode.css('max-width')) * height / parseFloat(svgNode.attr('height'));
 					const svg = svgNode
@@ -331,15 +301,19 @@ function setState(context){
 		})()]],
 		["table", ["table", (() => {
 			const getTableDecoration = memoize((html, darkMode, fontFamily, fontSize, lineHeight) => {
+				const numRows = 1 + (html.match(/<tr>/g) || []).length;
 				const css = `
 				table { border-collapse: collapse; }
-				td, th { border: ridge; }
+				th {
+				   border-bottom : solid;
+    			}
+				 td, th {padding:0 0.5em;}
+				td { height: ${lineHeight + lineHeight/(numRows-1)}px;}
 				body {
 					font-family:${fontFamily.replace(/(?<!\\)"/g, "'")};
 					font-size: ${fontSize}px;
 				}
 				`;
-				const numRows = 1 + (html.match(/<tr>/g) || []).length;
 				const maxLength = Math.max(...(html.match(/<tr>[^]+?<\/tr>/g) || [""]).map(e => e.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "").length));
 				const tableUri = svgToUri(htmlToSvg(numRows * lineHeight, maxLength * fontSize, html, css));
 				return vscode.window.createTextEditorDecorationType({

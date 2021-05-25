@@ -75,10 +75,10 @@ async function visitNodes(node) {
     const stack = [[node, 0]];
     while (stack.length) {
         let [curNode, listLevel] = stack.pop()
-        const dec = await state.types.get(curNode.type);
+        const dec = state.types.get(curNode.type);
         const position = curNode.position;
         if (dec) {
-            dec(position.start.offset, position.end.offset, curNode, listLevel);
+            await dec(position.start.offset, position.end.offset, curNode, listLevel);
             if (curNode.type == "listItem") {
                 listLevel += 1;
             }

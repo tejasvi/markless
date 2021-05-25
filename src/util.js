@@ -14,14 +14,16 @@ class DefaultMap extends Map {
 }
 
 function memoize(func) {
-    const cache = new Map();
-    return (...args) => {
-        const key = args.toString();
-        if (!cache.has(key)) {
-            cache.set(key, func(...args));
-        }
-        return cache.get(key);
-    };
+    return (() => {
+        const cache = new Map();
+        return (...args) => {
+            const key = args.toString();
+            if (!cache.has(key)) {
+                cache.set(key, func(...args));
+            }
+            return cache.get(key);
+        };
+    })();
 }
 
 /**

@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const { memoize } = require('./util');
 
-const getSvgDecoration = memoize((svgUri, darkMode) => {
+function getSvgDecoration (svgUri, darkMode) {
     return vscode.window.createTextEditorDecorationType({
         color: "transparent",
         textDecoration: "none; display: inline-block; width: 0;",
@@ -10,7 +10,7 @@ const getSvgDecoration = memoize((svgUri, darkMode) => {
             textDecoration: `none;${darkMode ? " filter: invert(1)" : ""}`,
         },
     });
-});
+}
 
 const hideDecoration = vscode.window.createTextEditorDecorationType({
     color: "transparent",

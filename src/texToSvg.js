@@ -25,7 +25,7 @@ const texToSvg = (() => {
     return (texString, display, fontSize, height) => {
         const node = html.convert(texString, { display: display });
         const attributes = node.children[0].attributes;
-        attributes["width"] = `${parseFloat(attributes["width"]) * fontSize / 16}ex`;
+        attributes["width"] = `${parseFloat(attributes["width"]) * height / parseFloat(attributes["height"])}px`;
         attributes["height"] = `${height}px`;
         attributes.preserveAspectRatio = "xMinYMin meet";
         console.log(node);
