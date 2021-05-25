@@ -147,7 +147,7 @@ function setState(context){
 		["latex", ["math", (() => {
 			const getTexDecoration = (() => {
 				const _getTexDecoration = memoize((texString, display, darkMode, fontSize, height) => {
-					const svgUri = svgToUri(texToSvg(texString, display, fontSize, height));
+					const svgUri = svgToUri(texToSvg(texString, display, height));
 					return getSvgDecoration(svgUri, darkMode);
 				});
 				return (texString, display, numLines) => _getTexDecoration(texString, display, state.darkMode, state.fontSize, numLines * state.lineHeight);

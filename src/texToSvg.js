@@ -22,11 +22,13 @@ const texToSvg = (() => {
     const svg = new SVG({ fontCache: 'local' });
     const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
 
-    return (texString, display, fontSize, height) => {
+    return (texString, display, height) => {
         const node = html.convert(texString, { display: display });
         const attributes = node.children[0].attributes;
-        attributes["width"] = `${parseFloat(attributes["width"]) * height / parseFloat(attributes["height"])}px`;
-        attributes["height"] = `${height}px`;
+        if (height) {
+            attributes["width"] = `${parseFloat(attributes["width"]) * height / parseFloat(attributes["height"])}px`;
+            attributes["height"] = `${height}px`;
+        }
         attributes.preserveAspectRatio = "xMinYMin meet";
         console.log(node);
         let svgElement = adaptor.innerHTML(node);

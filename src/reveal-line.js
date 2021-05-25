@@ -9,14 +9,19 @@ function enableLineRevealAsSignature() {
             if (!state.activeEditor) return;
             console.log('Signature Help');
             const cursorPosition = state.activeEditor.selection.active;
-            const visibleRangePos = state.activeEditor.document.offsetAt(cursorPosition) - state.offset;
 
             let latexElement = undefined;
-            const texRegEx = /(?<!`)(\${1,2})([^ `][^`]+?[^ `])(\1)(?!`)/g;
-            let match;
-            while ((match = texRegEx.exec(state.text))) {
-                if (match.index <= visibleRangePos && visibleRangePos <= match.index + match[0].length) {
-                    latexElement = `![latexPreview](${svgToUri(texToSvg(match[2]))})`;
+            let start = state.activeEditor.document.offsetAt(cursorPosition)+2;
+            let end = start-3;
+            while (--start > 0) {
+                if (state.text[start-1] === '$' && state.text[start] !== ' ') {
+                    while (++end < state.text.length) {
+                        if (state.text[end] === '$' && state.text[end-1] !== ' ') {
+                            if (start < end)
+                                latexElement = `![latexPreview](${svgToUri(texToSvg(state.text.slice(start, end)))})`;
+                            break;
+                        }
+                    }
                     break;
                 }
             }
