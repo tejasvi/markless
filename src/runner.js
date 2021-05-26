@@ -7,9 +7,9 @@ const addInlineImages = (() => {
         constructor(url) {
             this.mode = vscode.CommentMode.Preview;
             this.author = { name: "" };
-            console.log("Image comment: ", [url]);
+            // console.log("Image comment: ", [url]);
             const parsedUri = urlToUri(url);
-            console.log("Image comment:", parsedUri);
+            // console.log("Image comment:", parsedUri);
             this.body = new vscode.MarkdownString(`[![inlinePreview](${parsedUri})](${parsedUri})`);
         }
     }
@@ -22,10 +22,10 @@ const addInlineImages = (() => {
 
         for (const [matchRange, url, alt] of state.imageList) {
             const key = [documentUriString, matchRange, url].toString();
-            console.log("Image comment key: ", key);
+            // console.log("Image comment key: ", key);
 
             if (lastImageThreadMap.has(key)) {
-                console.log("Image comment has key: ", key);
+                // console.log("Image comment has key: ", key);
                 newImageThreadMap.set(key, lastImageThreadMap.get(key));
                 lastImageThreadMap.delete(key);
             } else {
@@ -59,7 +59,7 @@ function addDecoration(decoration, startOffset, endOffset) {
 
 function setDecorations() {
     for (let [decoration, ranges] of state.decorationRanges) {
-        console.log("decoration RANGES", [decoration, ranges]);
+        // console.log("decoration RANGES", [decoration, ranges]);
         if (state.config.cursorDisables) {
             ranges = ranges.filter((r) => !state.selection.intersection(r));
         }
@@ -120,7 +120,7 @@ function normalizeList() {
 }
 
 
-let rejectRender = ()=>{};
+// let rejectRender = ()=>{};
 /**
  * @param {vscode.Range} [range]
  */
@@ -134,17 +134,17 @@ function constructDecorations(range) {
         state.offset = 0;
     }
     const node = parser(state.text);
-    rejectRender();
-    new Promise((resolve, reject) => {
-        rejectRender = reject;
-        resolve(visitNodes(node));
-    }).then(setDecorations).catch(e => { console.log("Render rejected", e); });
-    // visitNodes(node).then(setDecorations);
-    console.log("PARSING", node, nodeToHtml(node));
+    // rejectRender();
+    // new Promise((resolve, reject) => {
+    //     rejectRender = reject;
+    //     resolve(visitNodes(node));
+    // }).then(setDecorations).catch(() => {});
+    visitNodes(node).then(setDecorations);
+    // console.log("PARSING", node, nodeToHtml(node));
 }
 
 function updateDecorations() {
-    console.log("updateDecorations");
+    // console.log("updateDecorations");
     for (let decoration of state.decorationRanges.keys()) {
         state.decorationRanges.set(decoration, []); // Reduce failed lookups instead of .clear()
     }
@@ -152,18 +152,18 @@ function updateDecorations() {
         for (let range of state.activeEditor.visibleRanges) {
             range = new vscode.Range(Math.max(range.start.line - 200, 0), 0, range.end.line + 200, 0);
             constructDecorations(range);
-            console.log("Range: ", range.start.line, range.end.line);
+            // console.log("Range: ", range.start.line, range.end.line);
         }
     } else {
         constructDecorations();
     }
-    console.log("updateDecorationsEnd");
+    // console.log("updateDecorationsEnd");
 }
 
 let timeout;
 function triggerUpdateDecorations() {
     if (!state.enabled) return;
-    console.log("triggerUpdateDecorations");
+    // console.log("triggerUpdateDecorations");
     if (timeout) {
         clearTimeout(timeout);
         timeout = undefined;

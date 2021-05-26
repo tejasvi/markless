@@ -11,7 +11,7 @@ function enableLineRevealAsSignature(context) {
     context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('markdown', {
         provideSignatureHelp: (document, position) => {
             if (!state.activeEditor) return;
-            console.log('Signature Help');
+            // console.log('Signature Help');
             const cursorPosition = state.activeEditor.selection.active;
 
             let latexElement = undefined;
@@ -37,7 +37,7 @@ function enableLineRevealAsSignature(context) {
             if (!latexElement) {
                 ms.appendCodeblock(text, "markdown");
             }
-            console.log("signature", ms);
+            // console.log("signature", ms);
             return {
                 activeParameter: 0,
                 activeSignature: 0,
@@ -61,7 +61,7 @@ function registerWebviewViewProvider (context) {
 						<body>
 						<script src="${mermaidScriptUri}"></script>
 						<script>
-						console.log("WEBVIEW ENTER");
+						// console.log("WEBVIEW ENTER");
 
 						const vscode = acquireVsCodeApi();
 						window.addEventListener('message', event => {
@@ -71,8 +71,8 @@ function registerWebviewViewProvider (context) {
 								fontFamily: data.fontFamily,
 								startOnLoad: false
 							});
-							console.log("init done");
-							console.log("WEBVIEW RECIEVE FROM EXTENSION", event)
+							// console.log("init done");
+							// console.log("WEBVIEW RECIEVE FROM EXTENSION", event)
 							vscode.postMessage(mermaid.mermaidAPI.render('mermaid', data.source));
 						});
 
@@ -81,7 +81,7 @@ function registerWebviewViewProvider (context) {
 						</html>
 						`;
 			webviewView.webview.onDidReceiveMessage((svgString) => {
-				console.log(svgString);
+				// console.log(svgString);
 				resolveSvg(svgString);
 			}, null, context.subscriptions);
 			requestSvg = x => webviewView.webview.postMessage(x);
@@ -110,17 +110,6 @@ function toggle() {
 }
 
 function bootstrap(context) {
-	clearDecorations();
-	state.activeEditor = vscode.window.activeTextEditor;
-	if (state.activeEditor) {
-        if (state.activeEditor.document.languageId == "markdown") {
-			state.selection = state.activeEditor.selection;
-			triggerUpdateDecorations();
-        } else {
-            state.activeEditor = undefined;
-        }
-	}
-	
     state.enabled = true;
     state.context = context;
     state.decorationRanges = new DefaultMap(() => []);
@@ -146,7 +135,7 @@ function bootstrap(context) {
 				textDecoration: `; font-size: ${size}px; position: relative; top: 0.2em;`,
 			}));
 			return (start, end, node) => {
-				console.log("Heading node", node);
+				// console.log("Heading node", node);
 				addDecoration(getEnlargeDecoration(8 * state.fontSize / (2 + node.depth)), start + node.depth + 1, end);
 				addDecoration(hideDecoration, start, start + node.depth + 1);
 			};
@@ -181,7 +170,7 @@ function bootstrap(context) {
 				const regEx = /^ {0,3}>/mg;
 				let match;
 				while ((match = regEx.exec(text))) {
-					console.log("Quote: ", match);
+					// console.log("Quote: ", match);
 					addDecoration(quoteBarDecoration, start + match.index + match[0].length - 1, start + match.index + match[0].length);
 				}
 			};
@@ -219,7 +208,7 @@ function bootstrap(context) {
 				};
 			})();
 			return (start, _end, node, listLevel) => {
-				console.log("decorate list", listLevel);
+				// console.log("decorate list", listLevel);
 				if (node.children.length === 0) return;
 				const textPosition = node.children[0].position;
 				const textStart = textPosition.start.offset;
@@ -240,7 +229,7 @@ function bootstrap(context) {
 				const latexText = state.text.slice(start, end);
 				const match = /^(\$+)([^]+)\1/.exec(latexText);
 				if (!match) return;
-				console.log("math", latexText);
+				// console.log("math", latexText);
 				const numLines = 1 + (latexText.match(/\n/g)||[]).length;
 				addDecoration(getTexDecoration(match[2], match[1].length > 1, numLines), start, end);
 			};
@@ -283,8 +272,8 @@ function bootstrap(context) {
 						.attr("preserveAspectRatio", "xMinYMin meet")
 						.toString()
 					const svgUri = svgToUri(svg);
-					console.log("SSSSSSSVVVVGGGG:  ")
-					console.log('%c ', `font-size:400px; background:url(${svgUri}) no-repeat; background-size: contain;`);
+					// console.log("SSSSSSSVVVVGGGG:  ")
+					// console.log('%c ', `font-size:400px; background:url(${svgUri}) no-repeat; background-size: contain;`);
 					return getSvgDecoration(svgUri, false); // Using mermaid theme instead
 				});
 				return (source, numLines) => _getTexDecoration(source, state.darkMode, (numLines + 2) * state.lineHeight, state.fontFamily);
@@ -385,6 +374,17 @@ function bootstrap(context) {
 		})()]]
 	// @ts-ignore
 	].filter(e=>state.config.get(e[0])).map(e => e[1]));
+
+	clearDecorations();
+	state.activeEditor = vscode.window.activeTextEditor;
+	if (state.activeEditor) {
+        if (state.activeEditor.document.languageId == "markdown") {
+			state.selection = state.activeEditor.selection;
+			triggerUpdateDecorations();
+        } else {
+            state.activeEditor = undefined;
+        }
+	}
 }
 
 /**
@@ -404,14 +404,14 @@ function activate(context) {
 	bootstrap(context);
 
 	vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-		console.log("onDidChangeTextEditorVisibleRanges");
+		// console.log("onDidChangeTextEditorVisibleRanges");
 		if (state.activeEditor && state.activeEditor.document.lineCount > 500 && event.textEditor.document === state.activeEditor.document) {
 			triggerUpdateDecorations();
 		}
 	}, null, context.subscriptions);
 
 	vscode.window.onDidChangeActiveTextEditor(editor => {
-		console.log("onDidChangeActiveTextEditor");
+		// console.log("onDidChangeActiveTextEditor");
 		if (editor && editor.document.languageId == "markdown") {
 			state.activeEditor = editor;
 			triggerUpdateDecorations();
@@ -421,7 +421,7 @@ function activate(context) {
 	}, null, context.subscriptions);
 
 	vscode.workspace.onDidChangeTextDocument(event => {
-		console.log("onDidChangeTextDocument");
+		// console.log("onDidChangeTextDocument");
 		if (state.activeEditor && event.document === state.activeEditor.document) {
 			if (event.contentChanges.length == 1) {
 				state.changeRangeOffset = event.contentChanges[0].rangeOffset;

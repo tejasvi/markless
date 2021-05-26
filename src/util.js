@@ -4,11 +4,11 @@ function enableHoverImage(context) {
     context.subscriptions.push(vscode.languages.registerHoverProvider('markdown', {
         provideHover: (document, position) => {
             const line = document.lineAt(position).text;
-            console.log("HHOOVVEERR: ", line);
+            // console.log("HHOOVVEERR: ", line);
             const regEx = /(!?)\[[^\]]*\]\((.+?)\)/g;
             let match;
             while ((match = regEx.exec(line))) {
-                console.log("HHOOVVEERR: match ", match);
+                // console.log("HHOOVVEERR: match ", match);
                 if (match.index - 1 <= position.character && position.character <= match.index + match[0].length) {
                     const range = new vscode.Range(position.line, match.index, position.line, match.index + match[0].length + 1);
                     const parsedUri = urlToUri(match[2]);
@@ -56,7 +56,7 @@ const texToSvg = (() => {
             attributes["height"] = `${height}px`;
         }
         attributes.preserveAspectRatio = "xMinYMin meet";
-        console.log(node);
+        // console.log(node);
         let svgElement = adaptor.innerHTML(node);
         svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
         return svgElement;
