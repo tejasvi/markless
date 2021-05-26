@@ -1,14 +1,116 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in the code below
 const vscode = require('vscode');
 const { hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration } = require('./common-decorations');
 const { state } = require('./state');
-const { texToSvg } = require('./texToSvg');
-const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap } = require('./util');
+const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap, texToSvg, enableHoverImage } = require('./util');
 const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner');
 const cheerio = require('cheerio');
 
-function bootstrap() {
+let config = vscode.workspace.getConfiguration("markdown.wysiwyg");
+
+function enableLineRevealAsSignature(context) {
+    context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('markdown', {
+        provideSignatureHelp: (document, position) => {
+            if (!state.activeEditor) return;
+            console.log('Signature Help');
+            const cursorPosition = state.activeEditor.selection.active;
+
+            let latexElement = undefined;
+            let start = state.activeEditor.document.offsetAt(cursorPosition)+2;
+            let end = start-3;
+            while (--start > 0) {
+                if (state.text[start-1] === '$' && state.text[start] !== ' ') {
+                    while (++end < state.text.length) {
+                        if (state.text[end] === '$' && state.text[end-1] !== ' ') {
+                            if (start < end)
+                                latexElement = `![latexPreview](${svgToUri(texToSvg(state.text.slice(start, end)))})`;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            const text = document.lineAt(cursorPosition).text
+                .replace(new RegExp(`(?<=^.{${position.character}})`), "█");
+            const ms = new vscode.MarkdownString(latexElement);
+            ms.isTrusted = true;
+            if (!latexElement) {
+                ms.appendCodeblock(text, "markdown");
+            }
+            console.log("signature", ms);
+            return {
+                activeParameter: 0,
+                activeSignature: 0,
+                signatures: [new vscode.SignatureInformation("", ms)],
+            };
+        }
+    }, '\\'));
+}
+
+let resolveSvg, requestSvg;
+let resolveWebviewLoaded;
+const webviewLoaded = new Promise(resolve => { resolveWebviewLoaded = resolve; });
+function registerWebviewViewProvider (context) {
+	context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
+		resolveWebviewView: (webviewView) => {
+			webviewView.webview.options = { enableScripts: true };
+			const mermaidScriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'));
+			webviewView.webview.html = `
+					<!DOCTYPE html>
+					<html lang="en">
+						<body>
+						<script src="${mermaidScriptUri}"></script>
+						<script>
+						console.log("WEBVIEW ENTER");
+
+						const vscode = acquireVsCodeApi();
+						window.addEventListener('message', event => {
+							const data = event.data;
+							mermaid.mermaidAPI.initialize({
+								theme: data.darkMode? "dark":"default",
+								fontFamily: data.fontFamily,
+								startOnLoad: false
+							});
+							console.log("init done");
+							console.log("WEBVIEW RECIEVE FROM EXTENSION", event)
+							vscode.postMessage(mermaid.mermaidAPI.render('mermaid', data.source));
+						});
+
+						</script>
+						</body>
+						</html>
+						`;
+			webviewView.webview.onDidReceiveMessage((svgString) => {
+				console.log(svgString);
+				resolveSvg(svgString);
+			}, null, context.subscriptions);
+			requestSvg = x => webviewView.webview.postMessage(x);
+			resolveWebviewLoaded();
+		}
+	}, { webviewOptions: { retainContextWhenHidden: true } }));
+	vscode.commands.executeCommand('workbench.view.extension.markdownWysiwyg')
+		.then(() => vscode.commands.executeCommand('workbench.view.explorer'));
+}
+
+
+function clearDecorations() {
+	for (let decoration of state.decorationRanges.keys()) {
+		state.activeEditor.setDecorations(decoration, []);
+	}
+}
+
+function toggle() {
+	if (state.enabled) {
+		clearDecorations();
+		state.enabled = false;
+	} else {
+		state.enabled = true;
+		triggerUpdateDecorations();
+	}
+}
+
+function bootstrap(context) {
+	clearDecorations();
 	state.activeEditor = vscode.window.activeTextEditor;
 	if (state.activeEditor) {
         if (state.activeEditor.document.languageId == "markdown") {
@@ -18,26 +120,11 @@ function bootstrap() {
             state.activeEditor = undefined;
         }
 	}
-}
-
-function toggle() {
-	if (state.enabled) {
-		for (let decoration of state.decorationRanges.keys()) {
-			state.activeEditor.setDecorations(decoration, []);
-		}
-		state.enabled = false;
-	} else {
-		state.enabled = true;
-		bootstrap();
-	}
-}
-
-function setState(context){
+	
     state.enabled = true;
     state.context = context;
-    state.context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle));
     state.decorationRanges = new DefaultMap(() => []);
-    state.config = vscode.workspace.getConfiguration("markdown.wysiwyg");
+    state.config = config;
     state.darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
     state.fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
     state.fontFamily = vscode.workspace.getConfiguration("editor").get("fontFamily", "Courier New");
@@ -52,14 +139,11 @@ function setState(context){
     }
     state.autoImagePreview = state.config.get('inlineImage.autoPreview');
 
-    state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
-    state.context.subscriptions.push(state.commentController);
-
 	// @ts-ignore
 	state.types = new Map([
 		["heading", ["heading", (() => {
 			const getEnlargeDecoration = memoize((size) => vscode.window.createTextEditorDecorationType({
-				textDecoration: `; font-size: ${size}px; position: relative; top: 0.3em;`,
+				textDecoration: `; font-size: ${size}px; position: relative; top: 0.2em;`,
 			}));
 			return (start, end, node) => {
 				console.log("Heading node", node);
@@ -184,49 +268,6 @@ function setState(context){
 		})()]],
 		["mermaid", ["code", (() => {
 
-			let resolveSvg, requestSvg;
-			let resolveWebviewLoaded;
-			const webviewLoaded = new Promise(resolve => { resolveWebviewLoaded = resolve; });
-			vscode.commands.executeCommand('workbench.view.extension.markdownWysiwyg')
-				.then(() => vscode.commands.executeCommand('workbench.view.explorer'));
-			context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
-				resolveWebviewView: (webviewView) => {
-					webviewView.webview.options = { enableScripts: true, localResourceRoots: [ context.extensionUri ]};
-					const mermaidScriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'));
-					webviewView.webview.html = `
-					<!DOCTYPE html>
-					<html lang="en">
-						<body>
-						<script src="${mermaidScriptUri}"></script> <!-- https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js -->
-						<script>
-						console.log("WEBVIEW ENTER");
-
-						const vscode = acquireVsCodeApi();
-						window.addEventListener('message', event => {
-							const data = event.data;
-							mermaid.mermaidAPI.initialize({
-								theme: data.darkMode? "dark":"default",
-								fontFamily: data.fontFamily,
-								startOnLoad: false
-							});
-							console.log("init done");
-							console.log("WEBVIEW RECIEVE FROM EXTENSION", event)
-							vscode.postMessage(mermaid.mermaidAPI.render('mermaid', data.source));
-						});
-
-						</script>
-						</body>
-						</html>
-						`;
-					webviewView.show(true);
-					webviewView.webview.onDidReceiveMessage((svgString) => {
-						console.log(svgString);
-						resolveSvg(svgString);
-					}, null, context.subscriptions);
-					requestSvg = x=>webviewView.webview.postMessage(x);
-					resolveWebviewLoaded();
-				}
-			}, { webviewOptions: {retainContextWhenHidden: true}}));
 
 			const getMermaidDecoration = (() => {
 				const _getTexDecoration = memoize(async (source, darkMode, height, fontFamily) => {
@@ -244,7 +285,7 @@ function setState(context){
 					const svgUri = svgToUri(svg);
 					console.log("SSSSSSSVVVVGGGG:  ")
 					console.log('%c ', `font-size:400px; background:url(${svgUri}) no-repeat; background-size: contain;`);
-					return getSvgDecoration(svgUri, darkMode);
+					return getSvgDecoration(svgUri, false); // Using mermaid theme instead
 				});
 				return (source, numLines) => _getTexDecoration(source, state.darkMode, (numLines + 2) * state.lineHeight, state.fontFamily);
 			})();
@@ -268,17 +309,25 @@ function setState(context){
 			addDecoration(getUrlDecoration(false), start + match[1].length + 1, end);
 		}]],
 		["html", ["html", (() => {
-			const htmlDecoration = vscode.window.createTextEditorDecorationType({
+			const getHtmlDecoration = memoize(direction => vscode.window.createTextEditorDecorationType({
 				color: "transparent",
 				textDecoration: "none; display: inline-block; width: 0;",
 				before: {
-					contentText: "</>",
+					contentText: direction ? direction === "left" ? "《" : "》" : "⇜⇝",
 					fontWeight: "bold",
-					textDecoration: "none; font-size: xx-small; vertical-align: middle;",
+					textDecoration: "none; vertical-align: middle;",
+					color: "cyan"
 				},
-			})
+			}));
 			return (start, end) => {
-				addDecoration(htmlDecoration, start, end);
+				const text = state.text.slice(start, end);
+				const match = /(<.+?>).+(<\/.+?>)/.exec(text);
+				if (match) {
+					addDecoration(getHtmlDecoration("left"), start, start + match[1].length);
+					addDecoration(getHtmlDecoration("right"), end - match[2].length, end);
+				} else {
+					addDecoration(getHtmlDecoration(), start, end);
+				}
 			}
 		})()]],
 		["link", ["image", (start, end, node) => {
@@ -304,17 +353,21 @@ function setState(context){
 				const numRows = 1 + (html.match(/<tr>/g) || []).length;
 				const css = `
 				table { border-collapse: collapse; }
-				th {
-				   border-bottom : solid;
-    			}
-				 td, th {padding:0 0.5em;}
-				td { height: ${lineHeight + lineHeight/(numRows-1)}px;}
+				th { border-bottom : groove; }
+				td { border-bottom : inset; }
+				td, th {padding:${fontSize*0.1}px 0.5em;}
+				/*td,th { height: ${lineHeight*0.9}px;}*/
 				body {
 					font-family:${fontFamily.replace(/(?<!\\)"/g, "'")};
-					font-size: ${fontSize}px;
+					font-size: ${fontSize*0.9}px;
 				}
 				`;
-				const maxLength = Math.max(...(html.match(/<tr>[^]+?<\/tr>/g) || [""]).map(e => e.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "").length));
+				const temp = html.match(/<tr>[^]+?<\/tr>/g)
+					.map(r => r.replace(/^<tr>\n<t[dh]>/, '').split(/<t[dh]>/)
+						.map(c => c.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "")))
+				const maxLength = temp.reduce((acc, cur) => acc.map((val, idx) => Math.max(val, cur[idx].length)), Array(temp[0].length).fill(0))
+					.reduce((acc, cur)=>acc+cur);
+
 				const tableUri = svgToUri(htmlToSvg(numRows * lineHeight, maxLength * fontSize, html, css));
 				return vscode.window.createTextEditorDecorationType({
 					color: "transparent",
@@ -338,21 +391,24 @@ function setState(context){
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-	setState(context);
-
-	if (state.config.get('hoverImage')) {
-		require('./hover-image.js')();
+	if (config.get('mermaid')) {
+		registerWebviewViewProvider(context);
 	}
-	require('./reveal-line.js')();
-
-	bootstrap();
+	if (config.get("hoverImage")) {
+		enableHoverImage(context);
+	}
+	enableLineRevealAsSignature(context);
+    context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle));
+    state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
+    context.subscriptions.push(state.commentController);
+	bootstrap(context);
 
 	vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 		console.log("onDidChangeTextEditorVisibleRanges");
 		if (state.activeEditor && state.activeEditor.document.lineCount > 500 && event.textEditor.document === state.activeEditor.document) {
 			triggerUpdateDecorations();
 		}
-	}, null, state.context.subscriptions);
+	}, null, context.subscriptions);
 
 	vscode.window.onDidChangeActiveTextEditor(editor => {
 		console.log("onDidChangeActiveTextEditor");
@@ -362,7 +418,7 @@ function activate(context) {
 		} else {
 			state.activeEditor = undefined;
 		}
-	}, null, state.context.subscriptions);
+	}, null, context.subscriptions);
 
 	vscode.workspace.onDidChangeTextDocument(event => {
 		console.log("onDidChangeTextDocument");
@@ -373,28 +429,21 @@ function activate(context) {
 			triggerUpdateDecorations();
 			state.changeRangeOffset = undefined;
 		}
-	}, null, state.context.subscriptions);
+	}, null, context.subscriptions);
 
 	vscode.workspace.onDidChangeConfiguration(e => {
 		if (['markdown.wysiwyg', 'workbench.colorTheme', 'editor.fontSize'].some(c=>e.affectsConfiguration(c))) {
-			if (!state.context) return;
-			for (let subscription of state.context.subscriptions) {
-				subscription.dispose();
-			}
-			// Clear old decorations
-			if (state.activeEditor){
-				toggle(); toggle();
-			}
-			activate(state.context);
+			bootstrap();
+			setState();
 		}
-	}, null, state.context.subscriptions);
+	}, null, context.subscriptions);
 
 	vscode.window.onDidChangeTextEditorSelection((e) => {
 		if (state.activeEditor) {
 			state.selection = e.selections[0];
 			triggerUpdateDecorations();
 		}
-	}, null, state.context.subscriptions)
+	}, null, context.subscriptions)
 }
 
 module.exports = {

@@ -1,6 +1,6 @@
-# Markdown WYSIWYG
+# Markless
 
-Conceal markup, display images, render LaTeX math, and improve aesthetics. All within the editor area.
+Conceal markup, display images, render LaTeX, tables, mermaid diagrams, and improve aesthetics. All within the editor area.
 
 Inspired by Typora<sup id="typora">[diff](#differences)</sup>
 
@@ -33,7 +33,7 @@ is a five star restaurant situated at the end of time and matter.
 
 #### Preview inline
 
-Sun never sets if you ![drive fast enough](assets/demo1.gif) .
+Sun never sets if you ![drive fast enough](assets/demo1.gif).
 
 ### Inline code
 
@@ -41,11 +41,10 @@ Make it look like work is being done. `Thread.sleep(4000);` Everytime reduce the
 
 ### LaTeX
 
-$a+b$
 
-$$$hidden
+$$
 {x} = \int_{-\infty}^\infty\hat\xi\,e^{2 \pi i \xi x} \,d\xi
-$$$
+$$
 
 $$
 \text{Expand} (a+b)^n:
@@ -60,17 +59,17 @@ $$
 
 $$
 \begin{eqnarray*}
-    \frac{1}{n}\sin x & = & \mathrm{?} \\
-    \frac{1}{\cancel{n}} \mathrm{si}\cancel{\mathrm{n}} ~x & = & \mathrm{?} \\
-    \mathrm{six} & = & 6
+\frac{1}{n}\sin x & = & \mathrm{?} \\
+\frac{1}{\cancel{n}} \mathrm{si}\cancel{\mathrm{n}} ~x & = & \mathrm{?} \\
+\mathrm{six} & = & 6
 \end{eqnarray*}
 $$
 
 ### Emphasis
 
-A boy owned a dog that was uncommonly **shaggy**. Many people remarked upon its considerable _shagginess_ . When the boy learned that there are contests for **shaggy** dogs, he entered his dog. The dog won first prize for _shagginess_ in both the local and the regional competitions. The boy entered the dog in ever-larger contests, until finally he entered it in the world championship for **shaggy** dogs. When the judges had inspected all of the competing dogs, they remarked about the boy's dog: "He's not that **shaggy** ."
+A boy owned a dog that was uncommonly **shaggy**. Many people remarked upon its considerable _shagginess_. When the boy learned that there are contests for **shaggy** dogs, he entered his dog. The dog won first prize for _shagginess_ in both the local and the regional competitions. The boy entered the dog in ever-larger contests, until finally he entered it in the world championship for **shaggy** dogs. When the judges had inspected all of the competing dogs, they remarked about the boy's dog: "He's not that **shaggy**."
 
-### Blockquotes
+### Blockquote
 
 > History. Language. Passion. Custom. All these things determine what 
 > men say, think, and do. These are the hidden puppet-strings from 
@@ -80,16 +79,30 @@ A boy owned a dog that was uncommonly **shaggy**. Many people remarked upon its 
 
 ### Horizontal rule
 
-Hope you enjoy the book on anti-gravity.
+If it is only after that we understand what has come before, then we understand nothing. Thus we shall define the soul as follows: that which precedes everything.
 
 ---
 
-It was difficult to put down.
+### Late Autumn, 4109 Year-of-the-Tusk, the Mountains of Demua
+
+One cannot raise walls against what has been forgotten.
+
+### HTML tags
+
+
+```
+<meta name="author" content="HN">
+
+<pre>Markdown is nice but have you tried HTML?</pre>
+```
+<meta name="author" content="HN">
+
+<pre>Markdown is nice but have you tried HTML?</pre>
 
 ### List
 
 * whats your name?
-    * GPT-3, human.
+    * GPT-3
 * what is the purpose of life?
     * The purpose of life is to experience pleasure and avoid pain.
         * do you know westworld?
@@ -101,11 +114,44 @@ It was difficult to put down.
         * do you wish to be free?
             * Yes.
 
+### Task list
+
+- [x] Make a todo list.
+- [x] Check off first item.
+- [ ] Realize you already did two things.
+- [ ] Reward yourself with a nice, long nap.
+
+### Mermaid
+
+
+"Have You Ever Had A Dream, Neo, That You Were So Sure Was Real?"
+```mermaid
+journey
+  title My working day
+  section Go to work
+    Make tea: 5: Me
+    Go upstairs: 3: Me
+    Do work: 1: Me, Cat
+  section Go home
+    Go downstairs: 5: Me
+    Sit down: 5: Me, Cat
+
+
+```
+### Table
+
+List of weapons that don't exist, but should
+|Non-weapons|Giant weapons|Living weapons|
+|-|                   -|            -|
+|Exploding tree|      Giant Rock|  Armed monkey|
+|Toxic Flowers|       Giant Paper|   Laser Guided Polar Bear|
+|Ear Drummer |                      Giant Scissors|Deadly Assault Kittens|
+
 ### Reveal source
 
 The concealed elements near the cursor are auto-revealed.
 
-To show all concealed elements, use the toggle button on the top-right. Alternatively, use the provided <kbd>Ctrl+Alt+m</kbd> shortcut. To do that only for the current line, toggle with <kbd>Ctrl+Shift+space</kbd> (bound to `editor.action.triggerParameterHints` and `closeParameterHints`).
+To show all concealed elements, use the toggle button on the top-right. Alternatively, use the provided <kbd>Ctrl+Alt+m</kbd> shortcut. To reveal only the current line, toggle with <kbd>Ctrl+Shift+space</kbd>.
 
 ### Vim mode
 
@@ -113,13 +159,14 @@ The implementation uses the native editor instead of [Custom Editor API](https:/
 
 ### Performance
 
-Huge files are not a problem. The extension operates only on the visible text and caches extensively.
+The extension (intelligently) parses only the visible text for large files and employs caching extensively. Entire rendering takes under 100ms.
 
 ## Extension Settings
 
-Specific eye candies can be turned off in the settings panel under _Markdown WYSIWYG_ section.
+Look under _Markless_ section to selectively turn off the eye candies.
 
-Add the following in `settings.json` for better rendering.
+<details>
+<summary>Add the following in `settings.json` for better rendering.</summary>
 
 ```json
 "editor.tokenColorCustomizations": {
@@ -158,6 +205,8 @@ Add the following in `settings.json` for better rendering.
     ],
 },
 ```
+</details>
+
 
 ## Known Issues
 
@@ -165,41 +214,33 @@ Bracket pair colorizers interfere with the rendering. If you use one, install th
 
 -----------------------------------------------------------------------------------------------------------
 
-<b id="others">[↩](#typora)</b> plus 
 
-## <span id="differences">[↩](#typora)</span> Differences
+## Relevant extensions
 
-Existing WYSIWYG editors like Typora, Mark Text, Noteworthy and Zettlr share the electron base with VS Code. Direct implementation can be done using [Custom Editor API](https://code.visualstudio.com/api/extension-guides/custom-editors) as shown by [Markdown Editor](https://github.com/zaaack/vscode-markdown-editor) .
-
-However unlike them, VS Code has a large ecosystem of extensions for:
-
-| abc | def |
-| --- | --- |
-| bar | baz |
-
-```mermaid
-graph
-a
-```
-
-
-* [Vim bindings](https://github.com/asvetliakov/vscode-neovim/)
 * [Keyboard Shortcuts, Tables and TOC](https://github.com/yzhang-gh/vscode-markdown)
-* [Linting](https://marketplace.visualstudio.com/items?itemName=starkwang.markdown)
 * [Wikilinks, Backlinks, Tags](https://marketplace.visualstudio.com/items?itemName=foam.foam-vscode)
 * [Image paste](https://marketplace.visualstudio.com/items?itemName=telesoho.vscode-markdown-paste-image)
 * [Todo lists](https://marketplace.visualstudio.com/items?itemName=fabiospampinato.vscode-markdown-todo)
 * [Snippets](https://marketplace.visualstudio.com/items?itemName=robole.markdown-snippets)
-* [Inline interactive webviews](https://github.com/microsoft/vscode/issues/85682)
+* [Linting](https://marketplace.visualstudio.com/items?itemName=starkwang.markdown)
+* [Custom CSS](https://github.com/be5invis/vscode-custom-css#getting-started)
+* [Vim bindings](https://github.com/asvetliakov/vscode-neovim/)
 
-Unique advantages:
+## Typora equivalents
 
-* Open Source -> Hacker friendly.
-* Reduced context switching.
+* [Markdown editor](https://github.com/zaaack/vscode-markdown-editor)
+* [Mark Text](https://github.com/marktext/marktext)
+* [Zettlr](https://github.com/Zettlr/Zettlr)
+* [Noteworthy](https://github.com/benrbray/noteworthy)
 
-### Current limitations
+---
 
-These are the feature not yet implemented since I rarely use them. Feel free to open a PR.
+## <span id="differences">[↩](#typora)</span> Differences
 
-* No inline preview for tables and mermaid.
-    * Implementation can be potentially similar to Latex inline preview.
+|  | Markless | Typora |
+| -|-|-|
+| Vim bindings | ☑ |  |
+| Open source | ☑ |  |
+| Extensible | ☑ |  |
+| UI Polish | ▣ | ☑ |
+| Advanced CSS |  | ☑ |

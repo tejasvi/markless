@@ -1,5 +1,68 @@
 const vscode = require('vscode');
 
+function enableHoverImage(context) {
+    context.subscriptions.push(vscode.languages.registerHoverProvider('markdown', {
+        provideHover: (document, position) => {
+            const line = document.lineAt(position).text;
+            console.log("HHOOVVEERR: ", line);
+            const regEx = /(!?)\[[^\]]*\]\((.+?)\)/g;
+            let match;
+            while ((match = regEx.exec(line))) {
+                console.log("HHOOVVEERR: match ", match);
+                if (match.index - 1 <= position.character && position.character <= match.index + match[0].length) {
+                    const range = new vscode.Range(position.line, match.index, position.line, match.index + match[0].length + 1);
+                    const parsedUri = urlToUri(match[2]);
+                    if (match[1].length == 1) {
+                        return new vscode.Hover(new vscode.MarkdownString(`[![hoverPreview](${parsedUri})](${parsedUri})`), range);
+                    } else {
+                        return new vscode.Hover(new vscode.MarkdownString(`**[${match[2]}](${parsedUri})**`), range);
+                    }
+                }
+            }
+        }
+    }));
+}
+
+
+const texToSvg = (() => {
+    const { mathjax } = require('mathjax-full/js/mathjax.js');
+    const { TeX } = require('mathjax-full/js/input/tex.js');
+    const { SVG } = require('mathjax-full/js/output/svg.js');
+    const { liteAdaptor } = require('mathjax-full/js/adaptors/liteAdaptor.js');
+    const { RegisterHTMLHandler } = require('mathjax-full/js/handlers/html.js');
+    const { AllPackages } = require('mathjax-full/js/input/tex/AllPackages.js');
+    const CSS = [
+        'svg a{fill:blue;stroke:blue}',
+        '[data-mml-node="merror"]>g{fill:red;stroke:red}',
+        '[data-mml-node="merror"]>rect[data-background]{fill:yellow;stroke:none}',
+        '[data-frame],[data-line]{stroke-width:70px;fill:none}',
+        '.mjx-dashed{stroke-dasharray:140}',
+        '.mjx-dotted{stroke-linecap:round;stroke-dasharray:0,140}',
+        'use[data-c]{stroke-width:3px}'
+    ].join('');
+    const adaptor = liteAdaptor();
+    RegisterHTMLHandler(adaptor);
+    const packages = { packages: AllPackages.sort().join(', ').split(/\s*,\s*/) };
+
+    const tex = new TeX(packages);
+    const svg = new SVG({ fontCache: 'local' });
+    const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
+
+    return (texString, display, height) => {
+        const node = html.convert(texString, { display: display });
+        const attributes = node.children[0].attributes;
+        if (height) {
+            attributes["width"] = `${parseFloat(attributes["width"]) * height / parseFloat(attributes["height"])}px`;
+            attributes["height"] = `${height}px`;
+        }
+        attributes.preserveAspectRatio = "xMinYMin meet";
+        console.log(node);
+        let svgElement = adaptor.innerHTML(node);
+        svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
+        return svgElement;
+    }
+})();
+
 class DefaultMap extends Map {
     get(key) {
         if (!this.has(key)) {
@@ -74,4 +137,4 @@ const nodeToHtml = (() => {
     return (/** @type {import("unist").Node} */ node) => toHtml(toHast(node));
 })();
 
-module.exports = { DefaultMap, memoize, urlToUri, svgToUri, htmlToSvg, parser, nodeToHtml };
+module.exports = { DefaultMap, memoize, urlToUri, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage };

@@ -120,6 +120,7 @@ function normalizeList() {
 }
 
 
+let rejectRender = ()=>{};
 /**
  * @param {vscode.Range} [range]
  */
@@ -133,11 +134,13 @@ function constructDecorations(range) {
         state.offset = 0;
     }
     const node = parser(state.text);
-    visitNodes(node).then(setDecorations);
+    rejectRender();
+    new Promise((resolve, reject) => {
+        rejectRender = reject;
+        resolve(visitNodes(node));
+    }).then(setDecorations).catch(e => { console.log("Render rejected", e); });
+    // visitNodes(node).then(setDecorations);
     console.log("PARSING", node, nodeToHtml(node));
-    // for (let decorator of state.decorators) {
-    //     decorator();
-    // }
 }
 
 function updateDecorations() {
