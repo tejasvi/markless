@@ -7,3 +7,17 @@ vsc-extension-quickstart.md
 **/jsconfig.json
 **/*.map
 **/.eslintrc.json
+assets/.old
+assets/emphasis.jpg
+assets/heading.jpg
+assets/horizontal-rule.jpg
+assets/hover.jpg
+assets/inline-code.jpg
+assets/latex.jpg
+assets/list.jpg
+assets/mermaid.jpg
+assets/preview.jpg
+assets/quote.jpg
+assets/table.jpg
+assets/task-list.jpg
+assets/url.jpg
