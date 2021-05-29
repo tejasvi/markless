@@ -167,7 +167,7 @@ function triggerUpdateDecorations() {
         clearTimeout(timeout);
         timeout = undefined;
     }
-    timeout = setTimeout(updateDecorations, 50);
+    timeout = setTimeout(updateDecorations, 10);
 }
 
 module.exports = { triggerUpdateDecorations, addDecoration, posToRange }

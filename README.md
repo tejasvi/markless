@@ -1,3 +1,4 @@
+[a]
 <div align="center" id="top"><img src="assets/logo.png" align="center" width="425"></div>
 
 <div align="center">
@@ -31,6 +32,7 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
   - [Reveal source](#reveal-source)
   - [Performance](#performance)
   - [Vim bindings](#vim-bindings)
+  - [Spec compliant](#spec-compliant)
 - [Extension Settings](#extension-settings)
 - [Known Issues](#known-issues)
 - [Relevant extensions](#relevant-extensions)
@@ -101,6 +103,12 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 ### Mermaid
 
 ![](assets/mermaid.jpg)
+Use `mermaid` as the language specifier.
+
+```mermaid
+graph
+Markless
+```
 
 ### Table
 
@@ -121,6 +129,10 @@ The extension intelligently parses only the visible text for large files and emp
 ### Vim bindings
 
 The implementation uses the native editor instead of [Custom UI](https://code.visualstudio.com/api/extension-guides/custom-editors). All extensions should work as expected _including_ [Neo Vim](https://github.com/asvetliakov/vscode-neovim/).
+
+### Spec compliant
+
+The parser follows the Github Flavoured Markdown (thus Commonmark) spec. It prevents inconsistency with the formats exported with spec compliant renderers.
 
 ## Extension Settings
 
