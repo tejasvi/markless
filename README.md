@@ -1,9 +1,8 @@
-[a]
-<div align="center" id="top"><img src="assets/logo.png" align="center" width="425"></div>
+<div align="center" id="top"><img src="assets/logo.png" align="center" alt="markless" width="425"></div>
 
 <div align="center">
 
-Inspired by Typora<sup>[diff](#diff)</sup>
+Inspired by Typora<sup>[diff](#differences)</sup>
 </div>
 
 Preview markdown inline and extend the capabilities through existing VS Code extensions.
@@ -12,109 +11,105 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 <summary>Contents</summary>
 
-- [Features](#features)
-  - [Headers](#headers)
-  - [URLs](#urls)
-  - [Images](#images)
-    - [Preview on hover](#preview-on-hover)
-    - [Preview inline](#preview-inline)
-  - [Inline code](#inline-code)
-  - [LaTeX](#latex)
-    - [Live preview](#live-preview)
-  - [Emphasis](#emphasis)
-  - [Blockquote](#blockquote)
-  - [Horizontal rule](#horizontal-rule)
-  - [HTML tags](#html-tags)
-  - [List](#list)
-  - [Task list](#task-list)
-  - [Mermaid](#mermaid)
-  - [Table](#table)
-  - [Reveal source](#reveal-source)
-  - [Performance](#performance)
-  - [Vim bindings](#vim-bindings)
-  - [Spec compliant](#spec-compliant)
-- [Extension Settings](#extension-settings)
-- [Known Issues](#known-issues)
-- [Relevant extensions](#relevant-extensions)
-- [Typora equivalents](#typora-equivalents)
-- [Differences](#differences)
+- Features
+    - [**Headers**](#headers)
+    - [**URLs**](#urls)
+    - [**Images**](#images)
+      - [**Preview on hover**](#preview-on-hover)
+      - [**Preview inline**](#preview-inline)
+    - [**Inline code**](#inline-code)
+    - [**LaTeX**](#latex)
+      - [**Live preview**](#live-preview)
+    - [**Emphasis**](#emphasis)
+    - [**Blockquote**](#blockquote)
+    - [**Horizontal rule**](#horizontal-rule)
+    - [**HTML tags**](#html-tags)
+    - [**List**](#list)
+    - [**Task list**](#task-list)
+    - [**Mermaid**](#mermaid)
+    - [**Table**](#table)
+    - [**Reveal source**](#reveal-source)
+    - [**Performance**](#performance)
+    - [**Vim bindings**](#vim-bindings)
+    - [**Spec compliant**](#spec-compliant)
+- [**Extension Settings**](#extension-settings)
+- [**Known Issues**](#known-issues)
+- [**Relevant extensions**](#relevant-extensions)
+- [**Typora equivalents**](#typora-equivalents)
+- [**Differences**](#differences)
 </details>
 
-## Features
+<div id="features"> </div>
 
-### Headers
+# **Headers**
 
 ![](assets/heading.jpg)
 
-### URLs
+# **URLs**
 
 ![](assets/url.jpg)
 
-### Images
+# **Images**
 
 (and gifs!)
 
-#### Preview on hover
+## **Preview on hover**
 
 ![](assets/hover.jpg)
 
-#### Preview inline
+## **Preview inline**
 
 ![](assets/inline-image.gif)
 
-### Inline code
+# **Inline code**
 
 ![](assets/inline-code.jpg)
 
-### LaTeX
+# **LaTeX**
 
 ![](assets/latex.jpg)
 
 `$..$` for inline blocks and `$$..$$` for multiline blocks.
 
-#### Live preview
+## **Live preview**
 
 ![](assets/preview.jpg)
 
-### Emphasis
+# **Emphasis**
 
 ![](assets/emphasis.jpg)
 
-### Blockquote
+# **Blockquote**
 
 ![](assets/quote.jpg)
 
-### Horizontal rule
+# **Horizontal rule**
 
 ![](assets/horizontal-rule.jpg)
 
-### HTML tags
+# **HTML tags**
 
-<meta name="keywords" content="Quantum AI Nanobots on Mars Blockchain">
+![](assets/html.gif)
  
-### List
+# **List**
 
 ![](assets/list.jpg)
 
-### Task list
+# **Task list**
 
 ![](assets/task-list.jpg)
 
-### Mermaid
+# **Mermaid**
 
 ![](assets/mermaid.jpg)
-Use `mermaid` as the language specifier.
 
-```mermaid
-graph
-Markless
-```
+Use `mermaid` as the language specifier in the code block.
 
-### Table
+# **Table**
 
 ![](assets/table.jpg)
 
-### Reveal source
+# **Reveal source**
 
 The concealed elements near the cursor are auto-revealed.
 
@@ -122,19 +117,19 @@ The concealed elements near the cursor are auto-revealed.
 
 To show all concealed elements, use the toggle button on the top-right. Alternatively, use the provided <kbd>Ctrl+Shift+m</kbd> shortcut. To reveal only the current line, toggle with <kbd>Ctrl+Shift+space</kbd>.
 
-### Performance
+# **Performance**
 
 The extension intelligently parses only the visible text for large files and employs caching extensively. Entire rendering takes well [under 100ms](https://www.pubnub.com/blog/how-fast-is-realtime-human-perception-and-technology/).
 
-### Vim bindings
+# **Vim bindings**
 
 The implementation uses the native editor instead of [Custom UI](https://code.visualstudio.com/api/extension-guides/custom-editors). All extensions should work as expected _including_ [Neo Vim](https://github.com/asvetliakov/vscode-neovim/).
 
-### Spec compliant
+# **Spec compliant**
 
 The parser follows the Github Flavoured Markdown (thus Commonmark) spec. It prevents inconsistency with the formats exported with spec compliant renderers.
 
-## Extension Settings
+# **Extension Settings**
 
 Look under _Markless_ section to selectively turn off the eye candies.
 
@@ -182,13 +177,13 @@ Look under _Markless_ section to selectively turn off the eye candies.
 </details>
 
 
-## Known Issues
+# **Known Issues**
 
 Bracket pair colorizers interfere with the rendering. If you use one, install the [patched version](https://github.com/tejasvi/rainbow-brackets-2) which excludes the markdown files.
 
 -----------------------------------------------------------------------------------------------------------
 
-## Relevant extensions
+# **Relevant extensions**
 
 * [Keyboard Shortcuts, Tables and TOC](https://github.com/yzhang-gh/vscode-markdown)
 * [Wikilinks, Backlinks, Tags](https://marketplace.visualstudio.com/items?itemName=foam.foam-vscode)
@@ -200,7 +195,7 @@ Bracket pair colorizers interfere with the rendering. If you use one, install th
 * [Vim bindings](https://github.com/asvetliakov/vscode-neovim/)
 * [One of yours](https://code.visualstudio.com/api/get-started/your-first-extension)
 
-## Typora equivalents
+# **Typora equivalents**
 
 * [Markdown editor](https://github.com/zaaack/vscode-markdown-editor)
 * [Mark Text](https://github.com/marktext/marktext)
@@ -209,7 +204,7 @@ Bracket pair colorizers interfere with the rendering. If you use one, install th
 
 ---
 
-## Differences
+# **Differences**
 
 |  | Markless | Typora |
 | -|-|-|
