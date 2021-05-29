@@ -5,7 +5,7 @@ const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap, texToSvg, enableH
 const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner');
 const cheerio = require('cheerio');
 
-let config = vscode.workspace.getConfiguration("markdown.wysiwyg");
+let config = vscode.workspace.getConfiguration("markless");
 
 function enableLineRevealAsSignature(context) {
     context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('markdown', {
@@ -91,7 +91,7 @@ function registerWebviewViewProvider (context) {
 			resolveWebviewLoaded();
 		}
 	}, { webviewOptions: { retainContextWhenHidden: true } }));
-	vscode.commands.executeCommand('workbench.view.extension.markdownWysiwyg')
+	vscode.commands.executeCommand('workbench.view.extension.markless')
 		.then(() => vscode.commands.executeCommand('workbench.view.explorer'));
 }
 
@@ -321,11 +321,11 @@ function bootstrap(context) {
 		})()]],
 		["link", ["image", (start, end, node) => {
 			const text = state.text.slice(start, end);
-			const match = /!\[(.+)\]\(.+?\)/.exec(text);
+			const match = /!\[(.*)\]\(.+?\)/.exec(text);
 			if (!match) return;
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), start + match[1].length + 2, end);
-			state.imageList.push([posToRange(start, end), node.url, node.alt]);
+			state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
 		}]],
 		["emphasis", ["delete", (() => {
 			const strikeDecoration = vscode.window.createTextEditorDecorationType({
@@ -397,7 +397,7 @@ function activate(context) {
 		enableHoverImage(context);
 	}
 	enableLineRevealAsSignature(context);
-    context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle));
+    context.subscriptions.push(vscode.commands.registerCommand("markless.toggle", toggle));
 	state.imageList = [];
     state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
     context.subscriptions.push(state.commentController);
@@ -432,7 +432,7 @@ function activate(context) {
 	}, null, context.subscriptions);
 
 	vscode.workspace.onDidChangeConfiguration(e => {
-		if (['markdown.wysiwyg', 'workbench.colorTheme', 'editor.fontSize'].some(c=>e.affectsConfiguration(c))) {
+		if (['markless', 'workbench.colorTheme', 'editor.fontSize'].some(c=>e.affectsConfiguration(c))) {
 			bootstrap();
 		}
 	}, null, context.subscriptions);

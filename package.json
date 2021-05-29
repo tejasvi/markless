@@ -1,7 +1,7 @@
 {
-  "name": "markdown-wysiwyg",
+  "name": "markless",
   "publisher": "tejasvi",
-  "displayName": "Markdown WYSIWYG",
+  "displayName": "Markless",
   "description": "Preview markdown inline",
   "version": "1.0.0",
   "engines": {
@@ -30,7 +30,7 @@
     "type": "git",
     "url": "https://github.com/tejasvi/markdown-wysiwig"
   },
-  "icon": "assets/logo.png",
+  "icon": "assets/icon.png",
   "bugs": {
     "url": "https://github.com/tejasvi/markdown-wysiwig/issues"
   },
@@ -42,14 +42,14 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "markdownWysiwyg",
+          "id": "markless",
           "icon": "assets/activityBar.svg",
           "title": ""
         }
       ]
     },
     "views": {
-      "markdownWysiwyg": [
+      "markless": [
         {
           "type": "webview",
           "id": "test.webview",
@@ -60,7 +60,7 @@
     },
     "keybindings": [
       {
-        "command": "markdown.wysiwyg.toggle",
+        "command": "markless.toggle",
         "key": "ctrl+shift+m",
         "when": "resourceLangId == markdown"
       }
@@ -71,9 +71,9 @@
         "title": "Eval webview"
       },
       {
-        "command": "markdown.wysiwyg.toggle",
+        "command": "markless.toggle",
         "title": "Toggle Inline Preview",
-        "category": "Markdown WYSIWYM",
+        "category": "Markless",
         "enablement": "resourceLangId == markdown",
         "icon": {
           "dark": "./assets/toggle.svg",
@@ -85,86 +85,86 @@
       "editor/title": [
         {
           "when": "resourceLangId == markdown",
-          "command": "markdown.wysiwyg.toggle",
+          "command": "markless.toggle",
           "group": "navigation"
         }
       ]
     },
     "configuration": [
       {
-        "title": "Markdown WYSIWYG",
+        "title": "Markless",
         "properties": {
-          "markdown.wysiwyg.emphasis": {
+          "markless.emphasis": {
             "description": "Decorate bold, italics and strikethrough",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.heading": {
+          "markless.heading": {
             "description": "Decorate headings",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.horizontalRule": {
+          "markless.horizontalRule": {
             "description": "Decorate horizontal rule",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.inlineCode": {
+          "markless.inlineCode": {
             "description": "Decorate inline code",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.inlineImage.enabled": {
+          "markless.inlineImage.enabled": {
             "description": "Enable image preview",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.inlineImage.autoPreview": {
+          "markless.inlineImage.autoPreview": {
             "description": "Preview images automatically",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.mermaid": {
+          "markless.mermaid": {
             "description": "Render mermaid diagrams",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.latex": {
+          "markless.latex": {
             "description": "Render LaTeX",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.list": {
+          "markless.list": {
             "description": "Decorate lists",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.quote": {
+          "markless.quote": {
             "description": "Decorate quotes",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.table": {
+          "markless.table": {
             "description": "Render tables",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.html": {
+          "markless.html": {
             "description": "Decorate HTML tags",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.link": {
+          "markless.link": {
             "description": "Decorate link and image urls",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.hoverImage": {
+          "markless.hoverImage": {
             "description": "Preview image on hover",
             "type": "boolean",
             "default": true
           },
-          "markdown.wysiwyg.cursorDisables": {
+          "markless.cursorDisables": {
             "description": "Disable concealment around the cursor and selection",
             "type": "boolean",
             "default": true
