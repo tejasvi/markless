@@ -1,5 +1,67 @@
-const { state } = require('./state');
 const vscode = require('vscode');
+
+function enableHoverImage(context) {
+    context.subscriptions.push(vscode.languages.registerHoverProvider('markdown', {
+        provideHover: (document, position) => {
+            const line = document.lineAt(position).text;
+            // console.log("HHOOVVEERR: ", line);
+            const regEx = /(!?)\[[^\]]*\]\((.+?)\)/g;
+            let match;
+            while ((match = regEx.exec(line))) {
+                // console.log("HHOOVVEERR: match ", match);
+                if (match.index - 1 <= position.character && position.character <= match.index + match[0].length) {
+                    const range = new vscode.Range(position.line, match.index, position.line, match.index + match[0].length + 1);
+                    const parsedUri = urlToUri(match[2]);
+                    if (match[1].length == 1) {
+                        return new vscode.Hover(new vscode.MarkdownString(`[![hoverPreview](${parsedUri})](${parsedUri})`), range);
+                    } else {
+                        return new vscode.Hover(new vscode.MarkdownString(`**[${match[2]}](${parsedUri})**`), range);
+                    }
+                }
+            }
+        }
+    }));
+}
+
+
+const texToSvg = (() => {
+    const { mathjax } = require('mathjax-full/js/mathjax.js');
+    const { TeX } = require('mathjax-full/js/input/tex.js');
+    const { SVG } = require('mathjax-full/js/output/svg.js');
+    const { liteAdaptor } = require('mathjax-full/js/adaptors/liteAdaptor.js');
+    const { RegisterHTMLHandler } = require('mathjax-full/js/handlers/html.js');
+    const { AllPackages } = require('mathjax-full/js/input/tex/AllPackages.js');
+    const CSS = [
+        'svg a{fill:blue;stroke:blue}',
+        '[data-mml-node="merror"]>g{fill:red;stroke:red}',
+        '[data-mml-node="merror"]>rect[data-background]{fill:yellow;stroke:none}',
+        '[data-frame],[data-line]{stroke-width:70px;fill:none}',
+        '.mjx-dashed{stroke-dasharray:140}',
+        '.mjx-dotted{stroke-linecap:round;stroke-dasharray:0,140}',
+        'use[data-c]{stroke-width:3px}'
+    ].join('');
+    const adaptor = liteAdaptor();
+    RegisterHTMLHandler(adaptor);
+    const packages = { packages: AllPackages.sort().join(', ').split(/\s*,\s*/) };
+
+    const tex = new TeX(packages);
+    const svg = new SVG({ fontCache: 'local' });
+    const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
+
+    return (texString, display, height) => {
+        const node = html.convert(texString, { display: display });
+        const attributes = node.children[0].attributes;
+        if (height) {
+            attributes["width"] = `${parseFloat(attributes["width"]) * height / parseFloat(attributes["height"])}px`;
+            attributes["height"] = `${height}px`;
+        }
+        attributes.preserveAspectRatio = "xMinYMin meet";
+        // console.log(node);
+        let svgElement = adaptor.innerHTML(node);
+        svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
+        return svgElement;
+    }
+})();
 
 class DefaultMap extends Map {
     get(key) {
@@ -15,65 +77,64 @@ class DefaultMap extends Map {
 }
 
 function memoize(func) {
-    const cache = new Map();
-    return (...args) => {
-        const key = args.toString();
-        if (!cache.has(key)) {
-            cache.set(key, func(...args));
+    return (() => {
+        const cache = new Map();
+        return (...args) => {
+            const key = args.toString();
+            if (!cache.has(key)) {
+                cache.set(key, func(...args));
+            }
+            return cache.get(key);
+        };
+    })();
+}
+
+/**
+ * @param {string} url
+ */
+function urlToUri(url) {
+    if (url.includes(":")) {
+        if (url.match(/^[A-Z]:\\[^\\]/)) {
+            return vscode.Uri.file(url);
+        } else {
+            return vscode.Uri.parse(url, true);
         }
-        return cache.get(key);
-    };
-}
-
-function posToRange(start, end) {
-    const offsetToPos = state.activeEditor.document.positionAt;
-    const rangeStart = offsetToPos(start + state.offset);
-    const rangeEnd = offsetToPos(end + state.offset);
-    return new vscode.Range(rangeStart, rangeEnd);
-}
-
-function setDecorations() {
-    for (let [decoration, ranges] of state.decorationRanges) {
-        console.log("decoration RANGES", [decoration, ranges]);
-        state.activeEditor.setDecorations(decoration, ranges);
-        if (ranges.length == 0) {
-            state.decorationRanges.delete(decoration); // Unused decoration. Still exist in memoized decoration provider
-        }
+    } else if (url.startsWith("/")) {
+        return vscode.Uri.file(url);
+    } else {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const cwd = workspaceFolders ? workspaceFolders[0].uri : vscode.Uri.file("/");
+        return vscode.Uri.joinPath(cwd, url);
     }
 }
 
-function constructDecorations() {
-    for (let decoration of state.decorationRanges.keys()) {
-        state.decorationRanges.set(decoration, []); // Reduce failed lookups instead of .clear()
-    }
-    const activeEditor = state.activeEditor;
-    for (let range of activeEditor.visibleRanges) {
-        range = new vscode.Range(Math.max(range.start.line - 50, 0), 0, range.end.line + 50, 0);
-        console.log("Range: ", range.start.line, range.end.line);
-        state.offset = activeEditor.document.offsetAt(range.start);
-        state.text = activeEditor.document.getText(range);
-        for (let decorator of state.decorators) {
-            decorator();
-        }
-    }
+
+function svgToUri(svg) {
+    return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 }
 
-function updateDecorations() {
-    console.log("updateDecorations");
-    constructDecorations();
-    setDecorations();
-    console.log("updateDecorationsEnd");
+function htmlToSvg(height, width, html, css) {
+    return `
+    <svg width="${width}" height="${height}" style="overflow: visible;" xmlns="http://www.w3.org/2000/svg"><foreignObject class="node" x="0" y="0" width="100%" height="100%"><body xmlns="http://www.w3.org/1999/xhtml">
+    <style>${css ? css : ""}</style>
+    ${html}
+    </body></foreignObject></svg>`
 }
 
-let timeout;
-function triggerUpdateDecorations() {
-    console.log("triggerUpdateDecorations");
-    if (timeout) {
-        clearTimeout(timeout);
-        timeout = undefined;
-    }
-    timeout = setTimeout(updateDecorations, 100);
-}
+const parser = require('unified')()
+    .use(require('remark-math'))
+    .use(require('remark-parse'))
+    .use(require('remark-gfm'))
+    .parse;
 
+const nodeToHtml = (() => {
+    // Need
+    // "hast-util-to-html": "^7.1.3",
+    // "mdast-util-to-hast": "^10.2.0",
+    // else https://stackoverflow.com/a/63719868/8211365
+    const toHast = require('mdast-util-to-hast');
+    const toHtml = require('hast-util-to-html');
+    return (/** @type {import("unist").Node} */ node) => toHtml(toHast(node));
+})();
 
-module.exports = { DefaultMap, memoize, posToRange, triggerUpdateDecorations };
+module.exports = { DefaultMap, memoize, urlToUri, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage };

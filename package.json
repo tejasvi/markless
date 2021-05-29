@@ -1,61 +1,203 @@
 {
-	"name": "markdown-wysiwyg",
-	"publisher": "tejasvi",
-	"displayName": "Markdown WYSIWYG",
-	"description": "Preview markdown where you type.",
-	"version": "1.0.0",
-	"engines": {
-		"vscode": "^1.56.0"
-	},
-	"license": "MIT",
-	"categories": [
-		"Programming Languages",
-		"Formatters",
-		"Visualization",
-		"Themes",
-		"Other"
-	],
-	"keywords": [
-		"markdown",
-		"preview",
-		"inline",
-		"latex",
-		"hide"
-	],
-	"author": {
-		"name": "Tejasvi",
-		"url": "https://mefyi.com"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/tejasvi/markdown-wysiwig"
-	},
-	"icon": "assets/logo.png",
-	"bugs": {
-		"url": "https://github.com/tejasvi/markdown-wysiwig/issues"
-	},
-	"activationEvents": [
-		"onLanguage:markdown"
-	],
-	"main": "./src/extension.js",
-	"contributes": {},
-	"dependencies": {
-		"mathjax-full": "^3.1.4"
-	},
-	"scripts": {
-		"lint": "eslint .",
-		"pretest": "npm run lint",
-		"test": "node ./test/runTest.js"
-	},
-	"devDependencies": {
-		"@types/vscode": "^1.56.0",
-		"@types/glob": "^7.1.3",
-		"@types/mocha": "^8.0.4",
-		"@types/node": "^12.11.7",
-		"eslint": "^7.19.0",
-		"glob": "^7.1.6",
-		"mocha": "^8.2.1",
-		"typescript": "^4.1.3",
-		"vscode-test": "^1.5.0"
-	}
+  "name": "markless",
+  "publisher": "tejasvi",
+  "displayName": "Markless",
+  "description": "Preview markdown inline",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.56.0"
+  },
+  "license": "MIT",
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Visualization",
+    "Themes",
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "preview",
+    "inline",
+    "latex",
+    "typora"
+  ],
+  "author": {
+    "name": "Tejasvi S. Tomar",
+    "url": "https://mefyi.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tejasvi/markdown-wysiwig"
+  },
+  "icon": "assets/icon.png",
+  "bugs": {
+    "url": "https://github.com/tejasvi/markdown-wysiwig/issues"
+  },
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "markless",
+          "icon": "assets/activityBar.svg",
+          "title": ""
+        }
+      ]
+    },
+    "views": {
+      "markless": [
+        {
+          "type": "webview",
+          "id": "test.webview",
+          "name": "",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "markless.toggle",
+        "key": "ctrl+shift+m",
+        "when": "resourceLangId == markdown"
+      }
+    ],
+    "commands": [
+      {
+        "command": "test.eval",
+        "title": "Eval webview"
+      },
+      {
+        "command": "markless.toggle",
+        "title": "Toggle Inline Preview",
+        "category": "Markless",
+        "enablement": "resourceLangId == markdown",
+        "icon": {
+          "dark": "./assets/toggle.svg",
+          "light": "./assets/toggle.svg"
+        }
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceLangId == markdown",
+          "command": "markless.toggle",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": [
+      {
+        "title": "Markless",
+        "properties": {
+          "markless.emphasis": {
+            "description": "Decorate bold, italics and strikethrough",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.heading": {
+            "description": "Decorate headings",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.horizontalRule": {
+            "description": "Decorate horizontal rule",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.inlineCode": {
+            "description": "Decorate inline code",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.inlineImage.enabled": {
+            "description": "Enable image preview",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.inlineImage.autoPreview": {
+            "description": "Preview images automatically",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.mermaid": {
+            "description": "Render mermaid diagrams",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.latex": {
+            "description": "Render LaTeX",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.list": {
+            "description": "Decorate lists",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.quote": {
+            "description": "Decorate quotes",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.table": {
+            "description": "Render tables",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.html": {
+            "description": "Decorate HTML tags",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.link": {
+            "description": "Decorate link and image urls",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.hoverImage": {
+            "description": "Preview image on hover",
+            "type": "boolean",
+            "default": true
+          },
+          "markless.cursorDisables": {
+            "description": "Disable concealment around the cursor and selection",
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    ]
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.9",
+    "hast-util-to-html": "^7.1.3",
+    "mathjax-full": "^3.1.4",
+    "mdast-util-to-hast": "^10.2.0",
+    "mermaid": "^8.10.1",
+    "remark-gfm": "^1.0.0",
+    "remark-math": "^4.0.0",
+    "remark-parse": "^9.0.0",
+    "unified": "^9.2.1"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "node ./test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.56.0",
+    "@types/glob": "^7.1.3",
+    "@types/mocha": "^8.0.4",
+    "@types/node": "^12.11.7",
+    "eslint": "^7.19.0",
+    "glob": "^7.1.6",
+    "mocha": "^8.2.1",
+    "typescript": "^4.1.3",
+    "vscode-test": "^1.5.0"
+  }
 }
