@@ -1,5 +1,5 @@
 const { state } = require('./state');
-const { parser, nodeToHtml, urlToUri, DefaultMap } = require('./util');
+const { parser, urlToUri, DefaultMap } = require('./util');
 const vscode = require('vscode')
 
 const addInlineImages = (() => {
@@ -140,7 +140,6 @@ function constructDecorations(range) {
     //     resolve(visitNodes(node));
     // }).then(setDecorations).catch(() => {});
     visitNodes(node).then(setDecorations);
-    // console.log("PARSING", node, nodeToHtml(node));
 }
 
 function updateDecorations() {

@@ -47,10 +47,10 @@ function enableLineRevealAsSignature(context) {
     }, '\\'));
 }
 
-let resolveSvg, requestSvg;
-let resolveWebviewLoaded;
-const webviewLoaded = new Promise(resolve => { resolveWebviewLoaded = resolve; });
+let requestSvg, webviewLoaded;
 function registerWebviewViewProvider (context) {
+	let resolveWebviewLoaded, resolveSvg;
+	webviewLoaded = new Promise(resolve => { resolveWebviewLoaded = resolve; });
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider("test.webview", {
 		resolveWebviewView: (webviewView) => {
 			webviewView.webview.options = { enableScripts: true };
@@ -84,7 +84,10 @@ function registerWebviewViewProvider (context) {
 				// console.log(svgString);
 				resolveSvg(svgString);
 			}, null, context.subscriptions);
-			requestSvg = x => webviewView.webview.postMessage(x);
+			requestSvg = x => {
+				webviewView.webview.postMessage(x);
+				return new Promise(resolve => { resolveSvg = resolve; });
+			};
 			resolveWebviewLoaded();
 		}
 	}, { webviewOptions: { retainContextWhenHidden: true } }));
@@ -94,6 +97,7 @@ function registerWebviewViewProvider (context) {
 
 
 function clearDecorations() {
+	if (!state.decorationRanges) return;
 	for (let decoration of state.decorationRanges.keys()) {
 		state.activeEditor.setDecorations(decoration, []);
 	}
@@ -112,12 +116,12 @@ function toggle() {
 function bootstrap(context) {
     state.enabled = true;
     state.context = context;
+	clearDecorations();
     state.decorationRanges = new DefaultMap(() => []);
     state.config = config;
     state.darkMode = vscode.window.activeColorTheme.kind == vscode.ColorThemeKind.Dark;
     state.fontSize = vscode.workspace.getConfiguration("editor").get("fontSize", 14);
     state.fontFamily = vscode.workspace.getConfiguration("editor").get("fontFamily", "Courier New");
-	if (!state.imageList) state.imageList = [];
 
     const lineHeight = vscode.workspace.getConfiguration("editor").get("lineHeight", 0);
     // https://github.com/microsoft/vscode/blob/45aafeb326d0d3d56cbc9e2932f87e368dbf652d/src/vs/editor/common/config/fontInfo.ts#L54
@@ -192,7 +196,7 @@ function bootstrap(context) {
 					color: "transparent",
 					textDecoration: "none; display: inline-block; width: 0;",
 					after: {
-						contentText: checked ? "☑" : "☐ ",
+						contentText: checked ? "☑" : "☐",
 						fontWeight: "bold"
 					},
 				});
@@ -256,14 +260,10 @@ function bootstrap(context) {
 			};
 		})()]],
 		["mermaid", ["code", (() => {
-
-
 			const getMermaidDecoration = (() => {
 				const _getTexDecoration = memoize(async (source, darkMode, height, fontFamily) => {
 					await webviewLoaded;
-					const svgRecieved = new Promise(resolve => { resolveSvg = resolve; });
-					requestSvg({ source: source, darkMode: darkMode, fontFamily: fontFamily });
-					const svgString = await svgRecieved;
+					const svgString = await requestSvg({ source: source, darkMode: darkMode, fontFamily: fontFamily });
 					const svgNode = cheerio.load(svgString)('svg');
 					const maxWidth = parseFloat(svgNode.css('max-width')) * height / parseFloat(svgNode.attr('height'));
 					const svg = svgNode
@@ -298,24 +298,24 @@ function bootstrap(context) {
 			addDecoration(getUrlDecoration(false), start + match[1].length + 1, end);
 		}]],
 		["html", ["html", (() => {
-			const getHtmlDecoration = memoize(direction => vscode.window.createTextEditorDecorationType({
+			const htmlDecoration = vscode.window.createTextEditorDecorationType({
 				color: "transparent",
 				textDecoration: "none; display: inline-block; width: 0;",
 				before: {
-					contentText: direction ? direction === "left" ? "《" : "》" : "⇜⇝",
+					contentText: "</>",
 					fontWeight: "bold",
-					textDecoration: "none; vertical-align: middle;",
+					textDecoration: "none; font-size: small; vertical-align: middle;",
 					color: "cyan"
 				},
-			}));
+			});
 			return (start, end) => {
 				const text = state.text.slice(start, end);
 				const match = /(<.+?>).+(<\/.+?>)/.exec(text);
 				if (match) {
-					addDecoration(getHtmlDecoration("left"), start, start + match[1].length);
-					addDecoration(getHtmlDecoration("right"), end - match[2].length, end);
+					addDecoration(htmlDecoration, start, start + match[1].length);
+					addDecoration(htmlDecoration, end - match[2].length, end);
 				} else {
-					addDecoration(getHtmlDecoration(), start, end);
+					addDecoration(htmlDecoration, start, end);
 				}
 			}
 		})()]],
@@ -375,7 +375,6 @@ function bootstrap(context) {
 	// @ts-ignore
 	].filter(e=>state.config.get(e[0])).map(e => e[1]));
 
-	clearDecorations();
 	state.activeEditor = vscode.window.activeTextEditor;
 	if (state.activeEditor) {
         if (state.activeEditor.document.languageId == "markdown") {
@@ -399,6 +398,7 @@ function activate(context) {
 	}
 	enableLineRevealAsSignature(context);
     context.subscriptions.push(vscode.commands.registerCommand("markdown.wysiwyg.toggle", toggle));
+	state.imageList = [];
     state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
     context.subscriptions.push(state.commentController);
 	bootstrap(context);
@@ -434,7 +434,6 @@ function activate(context) {
 	vscode.workspace.onDidChangeConfiguration(e => {
 		if (['markdown.wysiwyg', 'workbench.colorTheme', 'editor.fontSize'].some(c=>e.affectsConfiguration(c))) {
 			bootstrap();
-			setState();
 		}
 	}, null, context.subscriptions);
 

@@ -61,7 +61,7 @@
     "keybindings": [
       {
         "command": "markdown.wysiwyg.toggle",
-        "key": "ctrl+alt+m",
+        "key": "ctrl+shift+m",
         "when": "resourceLangId == markdown"
       }
     ],

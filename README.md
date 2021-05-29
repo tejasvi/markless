@@ -48,7 +48,6 @@ $$
 
 $$
 \text{Expand} (a+b)^n:
-
 \begin{gather*} (a + b)^n\\ (a\ + \ b)^n\\ (a\quad + \quad b)^n\\ (a\qquad + \qquad b)^n
 \end{gather*}
 $$
@@ -90,14 +89,10 @@ One cannot raise walls against what has been forgotten.
 ### HTML tags
 
 
+```html
+<meta name="author" content="HN">
 ```
 <meta name="author" content="HN">
-
-<pre>Markdown is nice but have you tried HTML?</pre>
-```
-<meta name="author" content="HN">
-
-<pre>Markdown is nice but have you tried HTML?</pre>
 
 ### List
 
@@ -166,6 +161,7 @@ The extension (intelligently) parses only the visible text for large files and e
 Look under _Markless_ section to selectively turn off the eye candies.
 
 <details>
+
 <summary>Add the following in `settings.json` for better rendering.</summary>
 
 ```json
@@ -213,7 +209,6 @@ Look under _Markless_ section to selectively turn off the eye candies.
 Bracket pair colorizers interfere with the rendering. If you use one, install the [patched version](https://github.com/tejasvi/rainbow-brackets-2) which excludes the markdown files.
 
 -----------------------------------------------------------------------------------------------------------
-
 
 ## Relevant extensions
 
