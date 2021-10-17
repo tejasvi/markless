@@ -137,4 +137,6 @@ const nodeToHtml = (() => {
     return (/** @type {import("unist").Node} */ node) => toHtml(toHast(node));
 })();
 
-module.exports = { DefaultMap, memoize, urlToUri, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage };
+const path = require('path');
+
+module.exports = { DefaultMap, memoize, urlToUri, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage, path };
