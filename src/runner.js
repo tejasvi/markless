@@ -126,7 +126,8 @@ function visitNodes(node) {
                 listLevel += 1;
             }
         }
-        if (curNode.children) {
+        // A rendered table is one image; the markup in its cells is not decorated on top of it
+        if (curNode.children && !(curNode.type === "table" && decorators)) {
             for (const child of curNode.children) {
                 stack.push([child, listLevel, curNode]);
             }

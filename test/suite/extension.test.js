@@ -104,6 +104,8 @@ suite('Markless', () => {
 			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(38, 0, 40, 2))), 'display math');
 			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(36, 12, 36, 22))), 'inline math');
 			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(42, 0, 46, 13))), 'table');
+			// nothing is drawn over a table from the markup in its cells
+			assert.deepStrictEqual(ranges().filter(r => r.start.line >= 66).map(r => [r.start.line, r.start.character, r.end.line, r.end.character]), [[66, 0, 68, 40]]);
 		});
 
 		test('images are found relative to the markdown file (#9, #12)', () => {

@@ -63,3 +63,7 @@ Final line.
     ```sh
     echo nested
     ```
+
+| a | b |
+|---|---|
+| [link](https://example.com) | `code` |
