@@ -31,6 +31,18 @@ const decorationRanges = undefined;
 const appliedDecorations = new Set();
 
 /**
+ * Decorations each editor shows, so that images still shown elsewhere are not disposed
+ * @type {Map<import('vscode').TextEditor, Set<import('vscode').TextEditorDecorationType>>}
+ */
+const editorDecorations = new Map();
+
+/**
+ * Ranges last set for each decoration on each editor, written as a string
+ * @type {Map<import('vscode').TextEditor, Map<import('vscode').TextEditorDecorationType, string>>}
+ */
+const setRanges = new Map();
+
+/**
  * Decorations that only style the text (code block background, highlight) and stay when the
  * cursor is inside them.
  * @type {Set<import('vscode').TextEditorDecorationType>}
@@ -48,6 +60,18 @@ const build = undefined;
  * @type {{document: import('vscode').TextDocument, version: number, starts: number[]} | undefined}
  */
 const blockStarts = undefined;
+
+/**
+ * Link reference definitions of one version of a document: url by normalized label
+ * @type {{document: import('vscode').TextDocument, version: number, urls: Map<string, string>} | undefined}
+ */
+const definitions = undefined;
+
+/**
+ * Length of the parsed part of the document in `text`, which may be followed by definitions
+ * @type {number}
+ */
+const textLength = undefined;
 
 /**
  * @type {import('vscode').WorkspaceConfiguration}
@@ -107,9 +131,13 @@ const state = {
     context,
     decorationRanges,
     appliedDecorations,
+    editorDecorations,
+    setRanges,
     persistentDecorations,
     build,
     blockStarts,
+    definitions,
+    textLength,
     darkMode,
     fontSize,
     fontFamily,

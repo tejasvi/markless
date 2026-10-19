@@ -41,6 +41,17 @@ function ranges(decoration) {
 	return entries.flatMap(list => list.map(([range]) => range));
 }
 
+/**
+ * Whether each line from `first` to `last` has a decoration of its own from `column` to its end,
+ * as an image cut into one slice per line has.
+ */
+function sliced(document, first, last, column = 0) {
+	for (let line = first; line <= last; line++) {
+		if (!ranges().some(r => r.isEqual(new vscode.Range(line, column, line, document.lineAt(line).text.length)))) return false;
+	}
+	return true;
+}
+
 const covers = (range, line, character) => {
 	const position = new vscode.Position(line, character);
 	return range.start.isBeforeOrEqual(position) && position.isBefore(range.end);
@@ -103,12 +114,12 @@ suite('Markless', () => {
 			assert.ok(ranges(api.hideDecoration).some(r => r.isEqual(new vscode.Range(64, 0, 64, 7))), 'closing fence in a list item');
 		});
 
-		test('math and tables', () => {
-			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(38, 0, 40, 2))), 'display math');
+		test('math and tables, cut into one slice per line so that they stay when scrolled', () => {
+			assert.ok(sliced(document, 38, 40), 'display math');
 			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(36, 12, 36, 22))), 'inline math');
-			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(42, 0, 46, 13))), 'table');
+			assert.ok(sliced(document, 42, 46), 'table');
 			// nothing is drawn over a table from the markup in its cells
-			assert.deepStrictEqual(ranges().filter(r => r.start.line >= 66).map(r => [r.start.line, r.start.character, r.end.line, r.end.character]), [[66, 0, 68, 40]]);
+			assert.deepStrictEqual(ranges().filter(r => r.start.line >= 66).map(r => [r.start.line, r.start.character, r.end.line, r.end.character]), [[66, 0, 66, 9], [67, 0, 67, 9], [68, 0, 68, 40]]);
 		});
 
 		test('images are found relative to the markdown file (#9, #12)', () => {
@@ -134,7 +145,7 @@ suite('Markless', () => {
 		});
 
 		test('mermaid diagrams (#10)', async () => {
-			await waitFor(() => ranges().some(r => r.isEqual(new vscode.Range(29, 0, 34, 3))), 'the diagram', 30000);
+			await waitFor(() => sliced(document, 29, 34), 'the diagram', 30000);
 		});
 
 		test('toggle', async () => {
@@ -161,7 +172,7 @@ suite('Markless', () => {
 		});
 
 		test('equations with \\tag', () => {
-			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(4, 0, 6, 2))));
+			assert.ok(sliced(document, 4, 6));
 		});
 
 		test('task list checkboxes before markup', () => {
@@ -176,9 +187,22 @@ suite('Markless', () => {
 		});
 
 		test('tables: no markup drawn over them, images still previewed', () => {
-			const end = document.lineAt(15).text.length;
-			assert.deepStrictEqual(ranges().filter(r => r.start.line >= 13 && r.start.line <= 15).map(r => [r.start.line, r.start.character, r.end.line, r.end.character]), [[13, 0, 15, end]]);
+			const inTable = ranges().filter(r => r.start.line >= 13 && r.start.line <= 15);
+			assert.strictEqual(inTable.length, 3);
+			assert.ok(sliced(document, 13, 15));
 			assert.ok(threads().some(t => t.range.start.line === 15));
+		});
+
+		test('reference links and images', () => {
+			const hidden = ranges(api.hideDecoration);
+			for (const [start, end] of [[10, 11], [25, 27], [47, 48]]) {
+				assert.ok(hidden.some(r => r.isEqual(new vscode.Range(27, start, 27, end))), `hidden ${start}`);
+			}
+			for (const [start, end] of [[19, 23], [36, 42], [53, 54]]) {
+				assert.ok(ranges().some(r => r.isEqual(new vscode.Range(27, start, 27, end))), `icon ${start}`);
+			}
+			const thread = threads().find(t => t.range.start.line === 27);
+			assert.ok(thread && thread.comments[0].body.value.includes('(<images/pic.png>)'));
 		});
 
 		test('quotes in lists', () => {
@@ -197,9 +221,45 @@ suite('Markless', () => {
 		const document = await vscode.workspace.openTextDocument(path.join(fixtures, 'mermaid.md'));
 		await show(document);
 		for (const [start, end] of [[2, 5], [9, 15], [17, 27], [29, 32]]) {
-			await waitFor(() => ranges().some(r => r.isEqual(new vscode.Range(start, 0, end, 3))), `the diagram on lines ${start}-${end}`, 30000);
+			await waitFor(() => sliced(document, start, end), `the diagram on lines ${start}-${end}`, 30000);
 		}
 		await waitFor(() => ranges().some(r => r.isEqual(new vscode.Range(34, 0, 34, 10))), 'the error of the invalid diagram', 30000);
+	});
+
+	test('moving link URLs to the end of the document (#19)', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'A [link](https://example.com/a/long/path) and ![img](images/pic.png "Title") here.\n' });
+		const editor = await show(document);
+		await vscode.commands.executeCommand('markless.moveUrlsToDefinitions');
+		assert.strictEqual(document.getText(), 'A [link][1] and ![img][2] here.\n\n[1]: https://example.com/a/long/path\n[2]: images/pic.png "Title"\n');
+		await waitFor(() => api.state.build && api.state.build.key.split(' ')[1] === String(document.version), 'decorations');
+		assert.ok(ranges(api.hideDecoration).some(r => r.isEqual(new vscode.Range(0, 2, 0, 3))));
+		const actions = await vscode.commands.executeCommand('vscode.executeCodeActionProvider', document.uri, new vscode.Range(0, 1, 0, 1));
+		assert.ok(!actions.some(a => a.title.startsWith('Move')), 'no action once the urls are gone');
+		await editor.edit(e => e.insert(new vscode.Position(0, 0), '[x](y) '));
+		const offered = await vscode.commands.executeCommand('vscode.executeCodeActionProvider', document.uri, new vscode.Range(0, 2, 0, 2));
+		assert.ok(offered.some(a => a.title === 'Move all link URLs to the end of the document'));
+	});
+
+	test('references in a long document resolve with definitions outside the parsed part', async () => {
+		const lines = ['# Long', ''];
+		for (let i = 0; i < 300; i++) lines.push(`Paragraph ${i} with [a reference][r].`, '');
+		lines.push('[r]: https://example.com');
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: lines.join('\n') });
+		const editor = await show(document, 0);
+		await rebuilt(() => editor.revealRange(new vscode.Range(300, 0, 300, 0), vscode.TextEditorRevealType.AtTop));
+		assert.ok(!api.state.build.key.endsWith(' '), 'parses the visible part only');
+		const column = document.lineAt(310).text.indexOf('[');
+		assert.ok(ranges(api.hideDecoration).some(r => r.isEqual(new vscode.Range(310, column, 310, column + 1))));
+	});
+
+	test('images no longer used are disposed', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '$$\nx\n$$\n\ntext\n' });
+		const editor = await show(document);
+		const before = api.imageCount();
+		for (let i = 0; i < 10; i++) {
+			await rebuilt(() => editor.edit(e => e.insert(new vscode.Position(1, 1), 'x')));
+		}
+		assert.ok(api.imageCount() <= before + 5, `${api.imageCount()} images`);
 	});
 
 	test('large documents render math after line 500 (#22)', async () => {

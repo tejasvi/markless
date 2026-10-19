@@ -1,5 +1,6 @@
 const vscode = require('vscode');
-const { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration, createDecorationType, disposeDecorationTypes } = require('./common-decorations');
+const { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getImageDecorations, hasImageDecorations, createDecorationType, disposeDecorationTypes, imageCount } = require('./common-decorations');
+const { moveUrlsToDefinitions, closingBracket } = require('./references');
 const { state } = require('./state');
 const { memoize, nodeToHtml, svgToUri, htmlToSvg, texToSvg, enableHoverImage, urlToUri, tagRegEx, parseImgTag } = require('./util');
 const { triggerUpdateDecorations, addDecoration, addDecorationRange, posToRange, clearDecorations, removeInlineImages, imageThreadMap } = require('./runner');
@@ -52,6 +53,46 @@ function enableLineRevealAsSignature(context) {
             };
         }
     }, '\\'));
+}
+
+/**
+ * Lines wrap by their whole text, hidden link urls included, so long links leave lines short
+ * (#19). This moves urls to reference definitions at the end of the document, for the links in a
+ * range or the whole document.
+ */
+function enableMoveUrls(context) {
+	const move = async (uri, range) => {
+		const editor = uri ? vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uri.toString()) : vscode.window.activeTextEditor;
+		if (!editor || editor.document.languageId !== "markdown") return;
+		const document = editor.document;
+		range = range || (editor.selection.isEmpty ? undefined : editor.selection);
+		const edits = moveUrlsToDefinitions(document.getText(), range && document.offsetAt(range.start), range && document.offsetAt(range.end));
+		if (!edits.length) {
+			vscode.window.showInformationMessage("Markless: no link URLs to move here.");
+			return;
+		}
+		await editor.edit(builder => {
+			for (const edit of edits) {
+				builder.replace(new vscode.Range(document.positionAt(edit.start), document.positionAt(edit.end)), edit.text);
+			}
+		});
+	};
+	context.subscriptions.push(vscode.commands.registerCommand("markless.moveUrlsToDefinitions", move));
+	context.subscriptions.push(vscode.languages.registerCodeActionsProvider("markdown", {
+		provideCodeActions: (document, range) => {
+			// Offered on links written as [text](url)
+			const line = document.lineAt(range.start.line).text;
+			const onLink = [...line.matchAll(/!?\[[^\]]*\]\([^)]*\)/g)].some(match => match.index <= range.start.character && range.start.character <= match.index + match[0].length);
+			if (!onLink) return;
+			const action = (title, moveRange) => {
+				const codeAction = new vscode.CodeAction(title, vscode.CodeActionKind.RefactorRewrite);
+				codeAction.command = { title, command: "markless.moveUrlsToDefinitions", arguments: [document.uri, moveRange] };
+				return codeAction;
+			};
+			// VS Code's "Extract to link definition" moves one url
+			return [action("Move all link URLs to the end of the document", new vscode.Range(0, 0, document.lineCount, 0))];
+		}
+	}, { providedCodeActionKinds: [vscode.CodeActionKind.RefactorRewrite] }));
 }
 
 function toggle() {
@@ -107,25 +148,31 @@ function forEachTag(start, end, callback) {
 }
 
 /**
- * Offset of the `]` closing the `[` just before `from` in the parsed text, before `end`, or -1.
- * Brackets in code spans do not count.
+ * Offsets `[from, to]` of each line of a node, from the column the node starts in: markers of
+ * containers in front of it (like `> `) stay visible.
  */
-function closingBracket(from, end) {
-    let depth = 0;
-    for (let i = from; i < end; i++) {
-        if (state.text[i] === '\\') {
-            i++;
-        } else if (state.text[i] === '`') {
-            const ticks = /^`+/.exec(state.text.slice(i, end))[0];
-            const close = state.text.slice(i + ticks.length, end).search(new RegExp(`(?<!\`)${ticks}(?!\`)`));
-            i += ticks.length - 1 + (close === -1 ? 0 : close + ticks.length);
-        } else if (state.text[i] === '[') {
-            depth++;
-        } else if (state.text[i] === ']' && depth-- === 0) {
-            return i;
-        }
+function lineSpans(start, end) {
+    const column = start - (state.text.lastIndexOf("\n", start - 1) + 1);
+    const spans = [];
+    for (let lineStart = start - column; lineStart <= end; ) {
+        const newline = state.text.indexOf("\n", lineStart);
+        const lineEnd = newline === -1 || newline > end ? end : newline;
+        spans.push([spans.length ? Math.min(lineStart + column, lineEnd) : start, lineEnd]);
+        if (newline === -1 || newline >= end) break;
+        lineStart = newline + 1;
     }
-    return -1;
+    return spans;
+}
+
+/**
+ * Show an image made of one decoration per line over a node; the cursor in the node reveals it.
+ */
+function addImage(decorations, start, end) {
+    lineSpans(start, end).forEach(([from, to], line) => {
+        if (decorations[line]) {
+            addDecoration(decorations[line], from, to, start, end);
+        }
+    });
 }
 
 /**
@@ -253,17 +300,14 @@ function bootstrap(removeImages) {
 			};
 		})()]],
 		...(() => {
-			const getTexDecoration = memoize((texString, display, darkMode, fontSize, height, baseline) => {
-				const svgUri = svgToUri(texToSvg(texString, display, fontSize, height, baseline));
-				return getSvgDecoration(svgUri, darkMode);
-			});
 			const decorate = (start, end, node) => {
 				const numLines = node.position.end.line - node.position.start.line + 1;
 				const display = node.type === "math" || state.text.startsWith("$$", start);
 				// Math is typeset a bit larger than the editor font, whose letters are bigger for its size.
 				// Inline math sits on the baseline of the text when it fits in the line.
-				addDecoration(getTexDecoration(node.value, display, state.darkMode, 1.2 * state.fontSize, numLines * state.lineHeight,
-					node.type === "inlineMath" && numLines === 1 ? Math.round(state.lineHeight / 2 + 0.3 * state.fontSize) : undefined), start, end);
+				const formula = [node.value, display, 1.2 * state.fontSize, numLines * state.lineHeight,
+					node.type === "inlineMath" && numLines === 1 ? Math.round(state.lineHeight / 2 + 0.3 * state.fontSize) : undefined];
+				addImage(getImageDecorations(JSON.stringify(formula), () => texToSvg(...formula), numLines, state.lineHeight, state.darkMode), start, end);
 			};
 			return [["latex", ["math", decorate]], ["latex", ["inlineMath", decorate]]];
 		})(),
@@ -332,40 +376,46 @@ function bootstrap(removeImages) {
 					color: new vscode.ThemeColor("errorForeground"),
 				},
 			}));
-			// Rendered diagrams and the errors mermaid reported for them
-			const results = new Map();
+			// Errors mermaid reported for diagrams; rendered diagrams are images
+			const errors = new Map();
 			const rendering = new Map();
 			return (start, end, node) => {
 				if (node.lang !== "mermaid") return;
-				const text = state.text.slice(start, end);
-				const range = posToRange(start, end);
-				const firstLine = posToRange(start, start + (text.includes("\n") ? text.indexOf("\n") : text.length));
 				const numLines = node.position.end.line - node.position.start.line + 1;
 				const diagram = { source: node.value, darkMode: state.darkMode, height: numLines * state.lineHeight, fontFamily: state.fontFamily };
 				const key = JSON.stringify(diagram);
-				const addResult = (result) => {
-					if (result.decoration) {
-						addDecorationRange(result.decoration, range, range);
-					} else {
-						addDecorationRange(getErrorDecoration(result.error), firstLine, range);
+				// Ranges are taken now: the text and its offset are another part's when the diagram is ready
+				const range = posToRange(start, end);
+				const lineRanges = lineSpans(start, end).map(([from, to]) => posToRange(from, to));
+				const addResult = () => {
+					if (hasImageDecorations(key)) {
+						getImageDecorations(key, undefined, numLines, state.lineHeight, false) // Using mermaid theme instead
+							.forEach((decoration, line) => lineRanges[line] && addDecorationRange(decoration, lineRanges[line], range));
+					} else if (errors.has(key)) {
+						addDecorationRange(getErrorDecoration(errors.get(key).message), lineRanges[0], range);
 					}
 				};
-				if (results.has(key) && !results.get(key).retry) { // Added right away so that diagrams do not flicker while typing
-					addResult(results.get(key));
+				if (hasImageDecorations(key) || (errors.has(key) && !errors.get(key).retry)) { // Added right away so that diagrams do not flicker while typing
+					addResult();
 					return;
 				}
 				if (!rendering.has(key)) {
-					results.delete(key);
+					errors.delete(key);
 					rendering.set(key, renderMermaid(diagram).then(
-						svg => results.set(key, { decoration: getSvgDecoration(svgToUri(svg), false) }), // Using mermaid theme instead
+						svg => getImageDecorations(key, () => svg, numLines, state.lineHeight, false),
 						// Errors of the renderer itself are shown too, and the diagram is tried again on the next change
-						error => results.set(key, { error: error.message.split("\n")[0], retry: !error.fromMermaid }),
+						error => {
+							errors.set(key, { message: error.message.split("\n")[0], retry: !error.fromMermaid });
+							if (errors.size > 100) {
+								errors.delete(errors.keys().next().value);
+							}
+						},
 					).finally(() => rendering.delete(key)));
 				}
 				const build = state.build;
 				return rendering.get(key).then(() => {
-					if (state.build === build && results.has(key)) {
-						addResult(results.get(key));
+					if (state.build === build) {
+						addResult();
 					}
 				});
 			};
@@ -404,13 +454,32 @@ function bootstrap(removeImages) {
 			});
 		}, { insideTables: true })]],
 		["link", ["image", (start, end) => {
-			const altEnd = closingBracket(start + 2, end);
+			const altEnd = closingBracket(state.text, start + 2, end);
 			if (altEnd === -1 || state.text[altEnd + 1] !== "(") return;
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), altEnd, end);
 		}]],
 		["inlineImage.enabled", ["image", Object.assign((start, end, node) => {
 			state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
+		}, { insideTables: true })]],
+		// [text][label], [text][] and [text] with a definition elsewhere
+		["link", ["linkReference", (start, end, node) => {
+			const [textStart, textEnd] = getTextOffsets(start, end, node);
+			if (state.text[start] !== "[" || textStart === start) return;
+			addDecoration(hideDecoration, start, textStart);
+			addDecoration(getUrlDecoration(false), textEnd, end);
+		}]],
+		["link", ["imageReference", (start, end) => {
+			const altEnd = closingBracket(state.text, start + 2, end);
+			if (altEnd === -1) return;
+			addDecoration(hideDecoration, start, start + 2);
+			addDecoration(getUrlDecoration(true), altEnd, end);
+		}]],
+		["inlineImage.enabled", ["imageReference", Object.assign((start, end, node) => {
+			const url = state.definitions.urls.get(node.identifier);
+			if (url) {
+				state.imageList.push([posToRange(start, end), url, node.alt || " "]);
+			}
 		}, { insideTables: true })]],
 		["emphasis", ["delete", (() => {
 			const strikeDecoration = createDecorationType({
@@ -424,7 +493,7 @@ function bootstrap(removeImages) {
 		["table", ["table", (() => {
 			// Columns are sized by counting characters; wide (CJK, emoji) ones count twice.
 			const textWidth = (text) => [...text].reduce((width, c) => width + (/\p{Emoji_Presentation}|[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{20000}-\u{3fffd}]/u.test(c) ? 2 : 1), 0);
-			const getTableDecoration = memoize((html, numRows, numChars, numColumns, darkMode, fontFamily, fontSize, lineHeight) => {
+			const makeTable = (html, numRows, numChars, numColumns, darkMode, fontFamily, fontSize, lineHeight) => {
 				// The header row also covers the delimiter row so that each row is drawn over its own line
 				const css = `
 				table { border-collapse: collapse; }
@@ -439,9 +508,8 @@ function bootstrap(removeImages) {
 				}
 				`;
 				const width = Math.ceil((numChars * 0.65 + numColumns) * fontSize * 0.9) + 2;
-				const tableUri = svgToUri(htmlToSvg((numRows + 1) * lineHeight, width, html, css));
-				return getSvgDecoration(tableUri, darkMode);
-			});
+				return htmlToSvg((numRows + 1) * lineHeight, width, html, css);
+			};
 			return (start, end, node) => {
 				const html = nodeToHtml(node);
 				const columnWidths = [];
@@ -451,7 +519,8 @@ function bootstrap(removeImages) {
 					});
 				}
 				const numChars = columnWidths.reduce((acc, cur) => acc + cur, 0);
-				addDecoration(getTableDecoration(html, node.children.length, numChars, columnWidths.length, state.darkMode, state.fontFamily, state.fontSize, state.lineHeight), start, end);
+				const table = [html, node.children.length, numChars, columnWidths.length, state.darkMode, state.fontFamily, state.fontSize, state.lineHeight];
+				addImage(getImageDecorations(JSON.stringify(table), () => makeTable(...table), node.children.length + 1, state.lineHeight, state.darkMode), start, end);
 			};
 		})()]]
 	];
@@ -479,6 +548,7 @@ function activate(context) {
 	enableHoverImage(context);
 	enableLineRevealAsSignature(context);
     context.subscriptions.push(vscode.commands.registerCommand("markless.toggle", toggle));
+	enableMoveUrls(context);
 	state.imageList = [];
     state.commentController = vscode.comments.createCommentController("inlineImage", "Show images inline");
     context.subscriptions.push(state.commentController);
@@ -535,7 +605,7 @@ function activate(context) {
 	}, null, context.subscriptions)
 
 	if (context.extensionMode === vscode.ExtensionMode.Test) {
-		return { state, hideDecoration, imageThreadMap, getLineHeight, urlToUri };
+		return { state, hideDecoration, imageThreadMap, getLineHeight, urlToUri, imageCount };
 	}
 }
 

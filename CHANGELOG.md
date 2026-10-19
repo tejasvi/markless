@@ -11,9 +11,10 @@
 - Ordered lists keep their numbers. `markless.listBullets` sets the symbols of unordered lists (#7, #17)
 - Images are found relative to the markdown file, also in remote windows, and `<img>` tags are previewed (#9, #12, #14). File names with spaces, `data:` images and images in tables and diff views are previewed too
 - Mermaid diagrams render again, several at a time, and syntax errors are shown (#10)
-- Math, tables and diagrams are sized from the editor line height. They were cut to a sliver on macOS and with a custom `editor.lineHeight` (#13, #18)
+- Math, tables and diagrams are sized from the editor line height. They were cut to a sliver on macOS and with a custom `editor.lineHeight` (#13, #18). They also stay visible when their first line is scrolled out of view
 - Math blocks render correctly in documents longer than 500 lines (#22), and documents with folded sections update faster
 - The cursor and word highlights line up with the visible text, and hidden link URLs are no longer highlighted (#19, #21)
+- Reference links and images (`[text][label]`) are rendered, and **Move Link URLs to the End of the Document** turns `[text](url)` links into them, so that long URLs no longer make lines wrap early (#19)
 - Decorations are removed when a document stops being markdown (#20)
 - Horizontal rules span the editor again
 - Task items that start with formatting hide their `[ ]`, and block quotes in list items get their bars
