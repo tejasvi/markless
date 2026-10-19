@@ -1,8 +1,9 @@
 const vscode = require('vscode');
-const { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration } = require('./common-decorations');
+const { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration, createDecorationType, disposeDecorationTypes } = require('./common-decorations');
 const { state } = require('./state');
-const { memoize, nodeToHtml, svgToUri, htmlToSvg, texToSvg, enableHoverImage, cleanUrl, urlToUri } = require('./util');
-const { triggerUpdateDecorations, addDecoration, posToRange, clearDecorations, imageThreadMap } = require('./runner');
+const { memoize, nodeToHtml, svgToUri, htmlToSvg, texToSvg, enableHoverImage, urlToUri, tagRegEx, parseImgTag } = require('./util');
+const { triggerUpdateDecorations, addDecoration, addDecorationRange, posToRange, clearDecorations, removeInlineImages, imageThreadMap } = require('./runner');
+const { toString } = require('mdast-util-to-string');
 const { registerMermaidRenderer, renderMermaid } = require('./mermaid');
 
 function enableLineRevealAsSignature(context) {
@@ -11,10 +12,15 @@ function enableLineRevealAsSignature(context) {
             if (!state.activeEditor) return;
             // console.log('Signature Help');
             const cursorPosition = state.activeEditor.selection.active;
-            const text = document.getText();
+            // Math does not span paragraphs: look between the blank lines around the cursor
+            let firstLine = cursorPosition.line, lastLine = cursorPosition.line;
+            while (firstLine > 0 && cursorPosition.line - firstLine < 50 && !document.lineAt(firstLine - 1).isEmptyOrWhitespace) firstLine--;
+            while (lastLine < document.lineCount - 1 && lastLine - cursorPosition.line < 50 && !document.lineAt(lastLine + 1).isEmptyOrWhitespace) lastLine++;
+            const blockStart = document.offsetAt(new vscode.Position(firstLine, 0));
+            const text = document.getText(new vscode.Range(firstLine, 0, lastLine + 1, 0));
 
             let latexElement = undefined;
-            let start = document.offsetAt(cursorPosition)+2;
+            let start = document.offsetAt(cursorPosition) - blockStart + 2;
             let end = start-3;
             while (--start > 0) {
                 if (text[start-1] === '$' && text[start] !== ' ') {
@@ -50,8 +56,9 @@ function enableLineRevealAsSignature(context) {
 
 function toggle() {
 	if (state.enabled) {
-		clearDecorations();
 		state.enabled = false;
+		clearDecorations();
+		removeInlineImages();
 	} else {
 		state.enabled = true;
 		triggerUpdateDecorations();
@@ -92,21 +99,26 @@ function hideMarkers(start, end, node) {
  */
 function forEachTag(start, end, callback) {
     const text = state.text.slice(start, end);
-    const tagRegEx = /<!--[^]*?-->|<\/?[a-zA-Z][^>]*>/g;
+    const regEx = new RegExp(tagRegEx.source, "g");
     let match;
-    while ((match = tagRegEx.exec(text))) {
+    while ((match = regEx.exec(text))) {
         callback(start + match.index, start + match.index + match[0].length, match[0]);
     }
 }
 
 /**
- * Offset of the `]` closing the `[` just before `from` in the parsed text.
+ * Offset of the `]` closing the `[` just before `from` in the parsed text, before `end`, or -1.
+ * Brackets in code spans do not count.
  */
-function closingBracket(from) {
+function closingBracket(from, end) {
     let depth = 0;
-    for (let i = from; i < state.text.length; i++) {
+    for (let i = from; i < end; i++) {
         if (state.text[i] === '\\') {
             i++;
+        } else if (state.text[i] === '`') {
+            const ticks = /^`+/.exec(state.text.slice(i, end))[0];
+            const close = state.text.slice(i + ticks.length, end).search(new RegExp(`(?<!\`)${ticks}(?!\`)`));
+            i += ticks.length - 1 + (close === -1 ? 0 : close + ticks.length);
         } else if (state.text[i] === '[') {
             depth++;
         } else if (state.text[i] === ']' && depth-- === 0) {
@@ -116,8 +128,16 @@ function closingBracket(from) {
     return -1;
 }
 
-function bootstrap() {
+/**
+ * Make the decorators for the current settings and theme.
+ * @param {boolean} [removeImages] also recreate the image previews
+ */
+function bootstrap(removeImages) {
 	clearDecorations();
+	disposeDecorationTypes();
+	if (removeImages) {
+		removeInlineImages();
+	}
     state.config = vscode.workspace.getConfiguration("markless");
     state.darkMode = [vscode.ColorThemeKind.Dark, vscode.ColorThemeKind.HighContrast].includes(vscode.window.activeColorTheme.kind);
     const editorConfig = vscode.workspace.getConfiguration("editor", { languageId: "markdown" });
@@ -130,7 +150,7 @@ function bootstrap() {
 	const decorators = [
 		["heading", ["heading", (() => {
 			const getEnlargeDecoration = memoize((size) => {
-				const decoration = vscode.window.createTextEditorDecorationType({
+				const decoration = createDecorationType({
 					textDecoration: `; font-size: ${size}px; position: relative; top: 0.1em;`,
 					letterSpacing: "inherit", // see hiddenText
 				});
@@ -146,7 +166,7 @@ function bootstrap() {
 			};
 		})()]],
 		["horizontalRule", ["thematicBreak", (() => {
-			const horizontalRuleDecoration = vscode.window.createTextEditorDecorationType({
+			const horizontalRuleDecoration = createDecorationType({
 				...hiddenText,
 				before: {
 					contentText: "",
@@ -158,10 +178,10 @@ function bootstrap() {
 			};
 		})()]],
 		["quote", ["blockquote", (() => {
-			const quoteDecoration = vscode.window.createTextEditorDecorationType({
+			const quoteDecoration = createDecorationType({
 				textDecoration: "none; filter: drop-shadow(0px 0px 40px);",
 			});
-			const quoteBarDecoration = vscode.window.createTextEditorDecorationType({
+			const quoteBarDecoration = createDecorationType({
 				color: "transparent",
 				before: {
 					contentText: "",
@@ -171,20 +191,19 @@ function bootstrap() {
 			state.persistentDecorations.add(quoteDecoration);
 			return (start, end) => {
 				addDecoration(quoteDecoration, start, end);
-				const text = state.text.slice(start, end);
-				const regEx = /^ {0,3}>/mg;
-				let match;
-				while ((match = regEx.exec(text))) {
-					// console.log("Quote: ", match);
-					const barStart = start + match.index + match[0].length - 1;
-					const lineEnd = text.indexOf("\n", match.index);
-					addDecoration(quoteBarDecoration, barStart, barStart + 1, start + match.index, lineEnd === -1 ? end : start + lineEnd);
+				// The `>` of every line is in the column of the first one, also in nested lists
+				const column = start - (state.text.lastIndexOf("\n", start - 1) + 1);
+				for (let lineStart = start - column; lineStart < end; lineStart = state.text.indexOf("\n", lineStart) + 1 || end) {
+					const lineEnd = state.text.indexOf("\n", lineStart);
+					if (state.text[lineStart + column] === ">") {
+						addDecoration(quoteBarDecoration, lineStart + column, lineStart + column + 1, lineStart, lineEnd === -1 ? end : Math.min(lineEnd, end));
+					}
 				}
 			};
 		})()]],
 		["list", ["listItem", (() => {
 			const getBulletDecoration = memoize((bullet) => {
-				return vscode.window.createTextEditorDecorationType({
+				return createDecorationType({
 					...hiddenText,
 					after: {
 						contentText: bullet,
@@ -193,7 +212,7 @@ function bootstrap() {
 				});
 			});
 			const getCheckedDecoration = memoize((checked) => {
-				return vscode.window.createTextEditorDecorationType({
+				return createDecorationType({
 					...hiddenText,
 					after: {
 						contentText: checked ? "☑" : "☐",
@@ -204,7 +223,7 @@ function bootstrap() {
 			const getlistRainbowDecoration = (() => {
 				const hueRotationMultiplier = [0, 5, 9, 2, 6, 7];
 				const getNonCyclicDecoration = memoize((level) => {
-					const decoration = vscode.window.createTextEditorDecorationType({
+					const decoration = createDecorationType({
 						textDecoration: (`; filter: hue-rotate(${hueRotationMultiplier[level] * 360 / 12}deg);`),
 					});
 					state.persistentDecorations.add(decoration);
@@ -222,10 +241,11 @@ function bootstrap() {
 				const textPosition = node.children[0].position;
 				const textStart = textPosition.start.offset;
 				const textEnd = textPosition.end.offset;
-				if (node.checked != null) {
+				const checkbox = node.checked != null && /^(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX]\]/.exec(state.text.slice(start, Math.min(_end, start + 20)));
+				if (checkbox) {
 					// Ordered lists keep their numbers in front of the checkbox
-					const checkboxStart = list.ordered ? state.text.indexOf("[", start) : start;
-					addDecoration(getCheckedDecoration(node.checked), checkboxStart, textStart - 1, start, textStart);
+					const checkboxEnd = start + checkbox[0].length;
+					addDecoration(getCheckedDecoration(node.checked), list.ordered ? checkboxEnd - 3 : start, checkboxEnd, start, checkboxEnd + 1);
 				} else if (!list.ordered && listBullets.length) {
 					addDecoration(getBulletDecoration(listBullets[listLevel % listBullets.length]), start, textStart - 1, start, textStart);
 				}
@@ -254,7 +274,7 @@ function bootstrap() {
 			hideMarkers(start, end, node);
 		}]],
 		["highlight", ["highlight", (() => {
-			const highlightDecoration = vscode.window.createTextEditorDecorationType({
+			const highlightDecoration = createDecorationType({
 				backgroundColor: new vscode.ThemeColor("markless.highlightBackground"),
 			});
 			state.persistentDecorations.add(highlightDecoration);
@@ -264,7 +284,7 @@ function bootstrap() {
 			};
 		})()]],
 		["inlineCode", ["inlineCode", (() => {
-			const codeDecoration = vscode.window.createTextEditorDecorationType({
+			const codeDecoration = createDecorationType({
 				// outline: "1px dotted"
 				border: "outset",
 				borderRadius: "5px",
@@ -278,12 +298,12 @@ function bootstrap() {
 			};
 		})()]],
 		["codeBlock", ["code", (() => {
-			const codeBlockDecoration = vscode.window.createTextEditorDecorationType({
+			const codeBlockDecoration = createDecorationType({
 				isWholeLine: true,
 				backgroundColor: new vscode.ThemeColor("textCodeBlock.background"),
 			});
 			state.persistentDecorations.add(codeBlockDecoration);
-			const getLanguageDecoration = memoize((lang) => vscode.window.createTextEditorDecorationType({
+			const getLanguageDecoration = memoize((lang) => createDecorationType({
 				...hiddenText,
 				after: {
 					contentText: lang,
@@ -306,7 +326,7 @@ function bootstrap() {
 			};
 		})()]],
 		["mermaid", ["code", (() => {
-			const getErrorDecoration = memoize((message) => vscode.window.createTextEditorDecorationType({
+			const getErrorDecoration = memoize((message) => createDecorationType({
 				after: {
 					contentText: ` ⚠ ${message}`,
 					color: new vscode.ThemeColor("errorForeground"),
@@ -318,25 +338,28 @@ function bootstrap() {
 			return (start, end, node) => {
 				if (node.lang !== "mermaid") return;
 				const text = state.text.slice(start, end);
-				const firstLineEnd = start + (text.includes("\n") ? text.indexOf("\n") : text.length);
+				const range = posToRange(start, end);
+				const firstLine = posToRange(start, start + (text.includes("\n") ? text.indexOf("\n") : text.length));
 				const numLines = node.position.end.line - node.position.start.line + 1;
 				const diagram = { source: node.value, darkMode: state.darkMode, height: numLines * state.lineHeight, fontFamily: state.fontFamily };
 				const key = JSON.stringify(diagram);
 				const addResult = (result) => {
 					if (result.decoration) {
-						addDecoration(result.decoration, start, end, start, end);
+						addDecorationRange(result.decoration, range, range);
 					} else {
-						addDecoration(getErrorDecoration(result.error), start, firstLineEnd, start, end);
+						addDecorationRange(getErrorDecoration(result.error), firstLine, range);
 					}
 				};
-				if (results.has(key)) { // Added right away so that diagrams do not flicker while typing
+				if (results.has(key) && !results.get(key).retry) { // Added right away so that diagrams do not flicker while typing
 					addResult(results.get(key));
 					return;
 				}
 				if (!rendering.has(key)) {
+					results.delete(key);
 					rendering.set(key, renderMermaid(diagram).then(
 						svg => results.set(key, { decoration: getSvgDecoration(svgToUri(svg), false) }), // Using mermaid theme instead
-						error => error.fromMermaid ? results.set(key, { error: error.message.split("\n")[0] }) : console.error("Markless:", error),
+						// Errors of the renderer itself are shown too, and the diagram is tried again on the next change
+						error => results.set(key, { error: error.message.split("\n")[0], retry: !error.fromMermaid }),
 					).finally(() => rendering.delete(key)));
 				}
 				const build = state.build;
@@ -355,7 +378,7 @@ function bootstrap() {
 			addDecoration(getUrlDecoration(false), textEnd, end);
 		}]],
 		["html", ["html", (() => {
-			const htmlDecoration = vscode.window.createTextEditorDecorationType({
+			const htmlDecoration = createDecorationType({
 				...hiddenText,
 				before: {
 					contentText: "</>",
@@ -371,26 +394,26 @@ function bootstrap() {
 				});
 			}
 		})()]],
-		["inlineImage.enabled", ["html", (start, end) => {
+		["inlineImage.enabled", ["html", Object.assign((start, end) => {
 			// Images in html are previewed like markdown images (#9)
 			forEachTag(start, end, (tagStart, tagEnd, tag) => {
-				const image = /^<img\s[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
-				if (!image) return;
-				const alt = /\salt\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
-				state.imageList.push([posToRange(tagStart, tagEnd), cleanUrl(image[1] || image[2] || image[3]), (alt && (alt[1] || alt[2])) || " "]);
+				const image = parseImgTag(tag);
+				if (image) {
+					state.imageList.push([posToRange(tagStart, tagEnd), image.src, image.alt]);
+				}
 			});
-		}]],
+		}, { insideTables: true })]],
 		["link", ["image", (start, end) => {
-			const altEnd = closingBracket(start + 2);
-			if (altEnd === -1) return;
+			const altEnd = closingBracket(start + 2, end);
+			if (altEnd === -1 || state.text[altEnd + 1] !== "(") return;
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), altEnd, end);
 		}]],
-		["inlineImage.enabled", ["image", (start, end, node) => {
+		["inlineImage.enabled", ["image", Object.assign((start, end, node) => {
 			state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
-		}]],
+		}, { insideTables: true })]],
 		["emphasis", ["delete", (() => {
-			const strikeDecoration = vscode.window.createTextEditorDecorationType({
+			const strikeDecoration = createDecorationType({
 				textDecoration: "line-through"
 			});
 			return (start, end, node) => {
@@ -400,7 +423,7 @@ function bootstrap() {
 		})()]],
 		["table", ["table", (() => {
 			// Columns are sized by counting characters; wide (CJK, emoji) ones count twice.
-			const textWidth = (text) => [...text].reduce((width, c) => width + (/[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{1f300}-\u{1faff}\u{20000}-\u{3fffd}]/u.test(c) ? 2 : 1), 0);
+			const textWidth = (text) => [...text].reduce((width, c) => width + (/\p{Emoji_Presentation}|[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{20000}-\u{3fffd}]/u.test(c) ? 2 : 1), 0);
 			const getTableDecoration = memoize((html, numRows, numChars, numColumns, darkMode, fontFamily, fontSize, lineHeight) => {
 				// The header row also covers the delimiter row so that each row is drawn over its own line
 				const css = `
@@ -408,6 +431,7 @@ function bootstrap() {
 				th { border-bottom : groove; height: ${2 * lineHeight}px; }
 				td { border-bottom : inset; height: ${lineHeight}px; }
 				td, th { padding: 0 0.5em; box-sizing: border-box; white-space: nowrap; }
+				mark { color: inherit; background: ${darkMode ? "rgba(0, 40, 255, 0.3)" : "rgba(255, 242, 0, 0.5)"}; } /* inverted in dark themes */
 				body {
 					margin: 0;
 					font-family:${fontFamily.replace(/(?<!\\)"/g, "'")};
@@ -423,8 +447,7 @@ function bootstrap() {
 				const columnWidths = [];
 				for (const row of node.children) {
 					row.children.forEach((cell, column) => {
-						const cellText = state.text.slice(cell.position.start.offset, cell.position.end.offset).replace(/^\|/, "").replace(/\|$/, "").trim();
-						columnWidths[column] = Math.max(columnWidths[column] || 0, textWidth(cellText));
+						columnWidths[column] = Math.max(columnWidths[column] || 0, textWidth(toString(cell)));
 					});
 				}
 				const numChars = columnWidths.reduce((acc, cur) => acc + cur, 0);
@@ -475,6 +498,7 @@ function activate(context) {
 			triggerUpdateDecorations();
 		} else {
 			state.activeEditor = undefined;
+			state.build = undefined; // parse again when coming back
 		}
 	}, null, context.subscriptions);
 
@@ -498,7 +522,7 @@ function activate(context) {
 
 	vscode.workspace.onDidChangeConfiguration(e => {
 		if (['markless', 'editor.fontSize', 'editor.fontFamily', 'editor.lineHeight'].some(c=>e.affectsConfiguration(c, { languageId: "markdown" }))) {
-			bootstrap();
+			bootstrap(e.affectsConfiguration("markless.inlineImage"));
 		}
 	}, null, context.subscriptions);
 

@@ -29,6 +29,21 @@ suite('getBlockStarts', () => {
 		assert.deepStrictEqual(blockStarts('---\na: 1\n\nb: 2\n---\n\ntext'), [0, 6]);
 		assert.deepStrictEqual(blockStarts('<!--\n\nhidden\n\n-->\n\ntext'), [0, 6]);
 	});
+
+	test('nothing inside pre, script, style and textarea blocks', () => {
+		assert.deepStrictEqual(blockStarts('<pre>\n\ncode\n\n</pre>\n\ntext'), [0, 6]);
+		assert.deepStrictEqual(blockStarts('<script src="x.js"></script>\n\ntext'), [0, 2]);
+	});
+
+	test('fences in list items and block quotes', () => {
+		assert.deepStrictEqual(blockStarts('- ```bash\n\n  echo\n\n  ```\n\ntext'), [0, 6]);
+		assert.deepStrictEqual(blockStarts('> ```\n>\n> x\n> ```\n\ntext'), [0, 5]);
+	});
+
+	test('an indented fence inside code does not close it', () => {
+		const python = ['```python', 'def f():', '    """', '    ```', '', 'example', '    ```', '    """', '```', '', 'text'];
+		assert.deepStrictEqual(blockStarts(python.join('\n')), [0, 10]);
+	});
 });
 
 suite('getParseRange', () => {

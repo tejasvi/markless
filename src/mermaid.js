@@ -5,17 +5,38 @@ const vscode = require('vscode');
 // several diagrams can be rendered at the same time.
 
 let webview;
-let resolveWebviewReady;
-let webviewReady = new Promise(resolve => { resolveWebviewReady = resolve; });
+let ready = waitForWebview();
 let revealed = false;
 let nextId = 0;
 const requests = new Map();
 
+function waitForWebview() {
+	let resolve, reject;
+	const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+	promise.catch(() => {});
+	return { promise, resolve, reject };
+}
+
+function timeout(promise, ms, message) {
+	let timer;
+	return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })])
+		.finally(() => clearTimeout(timer));
+}
+
 const webviewScript = `
 const vscode = acquireVsCodeApi();
+// Mermaid writes html (<br>, &nbsp;), so the svg is parsed as html and serialized as XML, which
+// the svg image in the editor needs.
 function fit(svgText, height) {
-	const svg = new DOMParser().parseFromString(svgText, 'image/svg+xml').documentElement;
-	const [, , width, viewHeight] = svg.getAttribute('viewBox').split(/[\\s,]+/).map(Number);
+	const container = document.createElement('div');
+	container.innerHTML = svgText;
+	const svg = container.querySelector('svg');
+	let { width, height: viewHeight } = svg.viewBox.baseVal || {};
+	if (!width || !viewHeight) {
+		document.body.append(container);
+		({ width, height: viewHeight } = svg.getBBox());
+		container.remove();
+	}
 	svg.setAttribute('width', width * height / viewHeight + 'px');
 	svg.setAttribute('height', height + 'px');
 	svg.style.removeProperty('max-width');
@@ -49,7 +70,7 @@ function registerMermaidRenderer(context) {
 			webviewView.webview.onDidReceiveMessage((message) => {
 				if (message.ready) {
 					webview = webviewView.webview;
-					resolveWebviewReady();
+					ready.resolve();
 					return;
 				}
 				const request = requests.get(message.id);
@@ -66,7 +87,8 @@ function registerMermaidRenderer(context) {
 			webviewView.onDidDispose(() => {
 				webview = undefined;
 				revealed = false;
-				webviewReady = new Promise(resolve => { resolveWebviewReady = resolve; });
+				ready.reject(new Error("The mermaid renderer was closed"));
+				ready = waitForWebview();
 				for (const request of requests.values()) {
 					request.reject(new Error("The mermaid renderer was closed"));
 				}
@@ -105,20 +127,21 @@ async function revealRenderer() {
 }
 
 /**
- * Render a mermaid diagram as an svg `height` px tall.
+ * Render a mermaid diagram as an svg `height` px tall. Errors from mermaid have `fromMermaid` set.
  * @param {{source: string, darkMode: boolean, height: number, fontFamily: string}} diagram
  * @returns {Promise<string>}
  */
 async function renderMermaid(diagram) {
 	if (!webview) {
 		await revealRenderer();
-		await webviewReady;
+		// The view may have been moved somewhere it is not shown
+		await timeout(ready.promise, 10000, "The mermaid renderer did not start. Show the Mermaid renderer view once.");
 	}
 	const id = nextId++;
-	return new Promise((resolve, reject) => {
+	return timeout(new Promise((resolve, reject) => {
 		requests.set(id, { resolve, reject });
 		webview.postMessage({ id, ...diagram });
-	});
+	}), 30000, "The mermaid renderer did not answer").finally(() => requests.delete(id));
 }
 
 module.exports = { registerMermaidRenderer, renderMermaid };

@@ -19,9 +19,16 @@ const text = undefined;
 const context = undefined;
 
 /**
- * @type {Map<import('vscode').TextEditorDecorationType, import('vscode').Range[]>}
+ * Ranges of each decoration in the parsed text, with the range around which the cursor reveals it
+ * @type {Map<import('vscode').TextEditorDecorationType, [import('vscode').Range, import('vscode').Range][]>}
  */
 const decorationRanges = undefined;
+
+/**
+ * Decorations set on an editor since they were last cleared from all editors
+ * @type {Set<import('vscode').TextEditorDecorationType>}
+ */
+const appliedDecorations = new Set();
 
 /**
  * Decorations that only style the text (code block background, highlight) and stay when the
@@ -31,10 +38,16 @@ const decorationRanges = undefined;
 const persistentDecorations = new Set();
 
 /**
- * Identifies the parse behind decorationRanges: document version and parsed lines.
- * @type {{key: string} | undefined}
+ * The parse behind decorationRanges: editor, document version and parsed lines
+ * @type {{editor: import('vscode').TextEditor, key: string, version: number, lines: [number, number][] | undefined} | undefined}
  */
 const build = undefined;
+
+/**
+ * Lines where parsing a long document can start, for one version of it
+ * @type {{document: import('vscode').TextDocument, version: number, starts: number[]} | undefined}
+ */
+const blockStarts = undefined;
 
 /**
  * @type {import('vscode').WorkspaceConfiguration}
@@ -93,8 +106,10 @@ const state = {
     text,
     context,
     decorationRanges,
+    appliedDecorations,
     persistentDecorations,
     build,
+    blockStarts,
     darkMode,
     fontSize,
     fontFamily,

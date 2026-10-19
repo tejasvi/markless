@@ -11,8 +11,25 @@ const hiddenText = {
     letterSpacing: "0",
 };
 
+// Decoration types made for the current settings and theme, disposed together when these change
+// so that no editor keeps showing them.
+const generation = new Set();
+
+function createDecorationType(options) {
+    const decoration = vscode.window.createTextEditorDecorationType(options);
+    generation.add(decoration);
+    return decoration;
+}
+
+function disposeDecorationTypes() {
+    for (const decoration of generation) {
+        decoration.dispose();
+    }
+    generation.clear();
+}
+
 function getSvgDecoration (svgUri, darkMode) {
-    return vscode.window.createTextEditorDecorationType({
+    return createDecorationType({
         ...hiddenText,
         before: {
             contentIconPath: vscode.Uri.parse(svgUri),
@@ -38,4 +55,4 @@ const getUrlDecoration = memoize((isImage) => vscode.window.createTextEditorDeco
         color: "cyan",
     },
 }));
-module.exports = { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration };
+module.exports = { hiddenText, hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration, createDecorationType, disposeDecorationTypes };

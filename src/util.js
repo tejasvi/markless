@@ -3,14 +3,41 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Url of an image or link inside markdown: the destination of `[text](url "title")` or the
- * `src` attribute of an `<img>` tag.
+ * Url in the destination of a markdown link or image: `[text](url "title")`.
  * @param {string} destination
  */
 function cleanUrl(destination) {
     destination = destination.trim();
     const match = /^<([^>]*)>/.exec(destination) || /^\S*/.exec(destination);
-    return (match[1] === undefined ? match[0] : match[1]).replace(/&amp;/g, '&');
+    return match[1] === undefined ? match[0] : match[1];
+}
+
+// An html tag (attribute values may contain `>`) or comment
+const tagRegEx = /<!--[^]*?-->|<\/?[A-Za-z][A-Za-z0-9-]*(?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/g;
+
+function decodeEntities(text) {
+    const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+    return text.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));/gi, (match, hex, decimal, name) =>
+        hex ? String.fromCodePoint(parseInt(hex, 16)) : decimal ? String.fromCodePoint(parseInt(decimal, 10)) : named[name.toLowerCase()] || match);
+}
+
+/**
+ * `src` and `alt` of an `<img>` tag, if it has a `src`.
+ * @param {string} tag
+ */
+function parseImgTag(tag) {
+    if (!/^<img\s/i.test(tag)) return;
+    const attributes = {};
+    const attributeRegEx = /\s([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+    let match;
+    while ((match = attributeRegEx.exec(tag))) {
+        const name = match[1].toLowerCase();
+        if (!(name in attributes)) {
+            attributes[name] = decodeEntities(match[2] ?? match[3] ?? match[4] ?? "");
+        }
+    }
+    const src = (attributes.src || "").trim();
+    return src ? { src, alt: attributes.alt || " " } : undefined;
 }
 
 function enableHoverImage(context) {
@@ -19,18 +46,18 @@ function enableHoverImage(context) {
             if (!vscode.workspace.getConfiguration("markless").get("hoverImage")) return;
             const line = document.lineAt(position).text;
             // console.log("HHOOVVEERR: ", line);
-            const regEx = /(!?)\[[^\]]*\]\(([^)]+)\)|<img\s[^>]*?src\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>/gi;
+            const regEx = new RegExp(`(!?)\\[[^\\]]*\\]\\(([^)]+)\\)|${tagRegEx.source}`, "g");
             let match;
             while ((match = regEx.exec(line))) {
                 // console.log("HHOOVVEERR: match ", match);
                 if (match.index - 1 <= position.character && position.character <= match.index + match[0].length) {
                     const range = new vscode.Range(position.line, match.index, position.line, match.index + match[0].length + 1);
-                    const url = cleanUrl(match[2] || match[3] || match[4] || '');
-                    const uri = urlToUri(url, document.uri);
-                    if (match[1] === undefined || match[1].length == 1) {
-                        return new vscode.Hover(imageMarkdown(uri, document.uri, "hoverPreview"), range);
-                    } else {
-                        return new vscode.Hover(new vscode.MarkdownString(`**[${url}](${uri})**`), range);
+                    const image = match[1] === undefined ? parseImgTag(match[0]) : undefined;
+                    const url = image ? image.src : match[1] === undefined ? undefined : cleanUrl(match[2]);
+                    if (!url) continue;
+                    const markdown = image || match[1].length == 1 ? imageMarkdown(url, document.uri, "hoverPreview") : linkMarkdown(url, document.uri);
+                    if (markdown) {
+                        return new vscode.Hover(markdown, range);
                     }
                 }
             }
@@ -74,31 +101,44 @@ const texToSvg = (() => {
      * @param {number} [baseline]
      */
     return (texString, display, fontSize, height, baseline) => {
+        tex.reset(); // forget the \label names of formulas typeset before
         const node = html.convert(texString, { display: display });
         const attributes = node.children[0].attributes;
-        // viewBox is in thousandths of an em with the baseline at y = 0
-        const [x, y, w, h] = attributes["viewBox"].split(/\s+/).map(parseFloat);
-        const pxPerUnit = fontSize / 1000;
-        if (height === undefined) {
-            height = h * pxPerUnit;
-        }
-        let scale, viewTop;
-        if (baseline !== undefined && -y * pxPerUnit <= baseline && (h + y) * pxPerUnit <= height - baseline) {
-            scale = 1;
-            viewTop = -baseline / pxPerUnit;
+        // Size in ems. The viewBox is in thousandths of an em with the baseline at y = 0. Equations
+        // with a \tag have no viewBox, only a size in ex.
+        let width, ascent, depth;
+        if (attributes["viewBox"]) {
+            const [, y, w, h] = attributes["viewBox"].split(/\s+/).map(parseFloat);
+            [width, ascent, depth] = [w / 1000, -y / 1000, (h + y) / 1000];
         } else {
-            scale = Math.min(1, height / (h * pxPerUnit));
-            viewTop = y + h / 2 - height / (scale * pxPerUnit) / 2;
+            const style = attributes["style"] || "";
+            const ex = svg.font.params.x_height;
+            width = parseFloat((/min-width:\s*([\d.]+)ex/.exec(style) || [])[1]) * ex || 1;
+            depth = -parseFloat((/vertical-align:\s*(-?[\d.]+)ex/.exec(style) || [])[1] || 0) * ex;
+            ascent = parseFloat(attributes["height"]) * ex - depth;
         }
-        attributes["viewBox"] = `${x} ${viewTop} ${w} ${height / (scale * pxPerUnit)}`;
-        attributes["width"] = `${w * pxPerUnit * scale}px`;
-        attributes["height"] = `${height}px`;
+        const total = ascent + depth;
+        if (height === undefined) {
+            height = total * fontSize;
+        }
+        let scale, top;
+        if (baseline !== undefined && ascent * fontSize <= baseline && depth * fontSize <= height - baseline) {
+            scale = 1;
+            top = baseline - ascent * fontSize;
+        } else {
+            scale = Math.min(1, height / (total * fontSize));
+            top = (height - total * fontSize * scale) / 2;
+        }
+        const em = fontSize * scale;
+        attributes["width"] = `${width * em}px`;
+        attributes["height"] = `${total * em}px`;
+        attributes["y"] = `${top}px`;
         delete attributes["style"];
         attributes.preserveAspectRatio = "xMinYMin meet";
         // console.log(node);
         let svgElement = adaptor.innerHTML(node);
         svgElement = svgElement.replace(/<defs>/, `<defs><style>${CSS}</style>`);
-        return svgElement;
+        return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width * em}px" height="${height}px">${svgElement}</svg>`;
     }
 })();
 
@@ -136,53 +176,106 @@ function safeDecode(text) {
     }
 }
 
+const hasScheme = url => /^[a-z][a-z0-9+.-]*:/i.test(url) && !/^[a-z]:[\\/]/i.test(url);
+
+/**
+ * Uri that the paths in a document are relative to. Images cannot be loaded from the git and
+ * notebook cell versions of a file, so these use the file itself.
+ * @param {vscode.Uri} documentUri
+ */
+function getBaseUri(documentUri) {
+    if (["git", "vscode-notebook-cell"].includes(documentUri.scheme) && documentUri.path.startsWith("/")) {
+        return vscode.Uri.file(documentUri.fsPath);
+    }
+    return documentUri;
+}
+
 /**
  * Resolve an image or link url like the built-in markdown preview: relative paths against the
  * folder of the markdown file and paths starting with `/` against its workspace folder (or the
- * file system root when the file only exists there).
+ * file system root when the file only exists there). Returns undefined for invalid urls.
  * @param {string} url
  * @param {vscode.Uri} [documentUri]
+ * @returns {vscode.Uri | undefined}
  */
 function urlToUri(url, documentUri) {
     url = url.trim();
-    if (/^[a-z]:[\\/]/i.test(url)) {
-        return vscode.Uri.file(url.replace(/\\/g, "/"));
-    } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-        return vscode.Uri.parse(url, true);
-    }
-    const filePath = safeDecode(url.replace(/[?#].*$/, ""));
-    const workspaceFolder = (documentUri && vscode.workspace.getWorkspaceFolder(documentUri)) || (vscode.workspace.workspaceFolders || [])[0];
-    if (filePath.startsWith("/")) {
-        if (workspaceFolder) {
-            const inFolder = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
-            if (inFolder.scheme !== "file" || fs.existsSync(inFolder.fsPath) || !fs.existsSync(filePath)) {
-                return inFolder;
-            }
+    try {
+        if (/^[a-z]:[\\/]/i.test(url)) {
+            return vscode.Uri.file(url.replace(/\\/g, "/"));
+        } else if (url.startsWith("//")) {
+            return vscode.Uri.parse("https:" + url, true);
+        } else if (hasScheme(url)) {
+            return vscode.Uri.parse(url, true);
         }
-        return documentUri && documentUri.scheme !== "untitled" ? documentUri.with({ path: filePath }) : vscode.Uri.file(filePath);
-    } else if (documentUri && documentUri.scheme !== "untitled") {
-        return vscode.Uri.joinPath(documentUri, "..", filePath);
-    } else {
-        return workspaceFolder ? vscode.Uri.joinPath(workspaceFolder.uri, filePath) : vscode.Uri.file(filePath);
+        const filePath = safeDecode(url.replace(/[?#].*$/, ""));
+        const baseUri = documentUri && documentUri.scheme !== "untitled" ? getBaseUri(documentUri) : undefined;
+        const workspaceFolder = (documentUri && vscode.workspace.getWorkspaceFolder(documentUri)) || (vscode.workspace.workspaceFolders || [])[0];
+        if (filePath.startsWith("/")) {
+            if (workspaceFolder) {
+                const inFolder = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
+                if (inFolder.scheme !== "file" || fs.existsSync(inFolder.fsPath) || !fs.existsSync(filePath)) {
+                    return inFolder;
+                }
+            }
+            return baseUri ? vscode.Uri.joinPath(baseUri.with({ path: "/" }), filePath) : vscode.Uri.file(filePath);
+        } else if (baseUri) {
+            return vscode.Uri.joinPath(baseUri, "..", filePath);
+        } else {
+            return workspaceFolder ? vscode.Uri.joinPath(workspaceFolder.uri, filePath) : vscode.Uri.file(filePath);
+        }
+    } catch {
+        return undefined;
     }
 }
 
 /**
- * Markdown showing the image at `uri` that links to it. Files next to the markdown file are
- * referenced relative to it through `baseUri`, which VS Code maps to the right machine in remote
- * windows; an absolute `file:` uri would be looked up on the local machine.
- * @param {vscode.Uri} uri
+ * Link destination for markdown shown by VS Code with `baseUri` set to getBaseUri(documentUri).
+ * Files on the same machine are written as paths relative to the markdown file, which VS Code
+ * maps to the right machine in remote windows; an absolute `file:` uri would be looked up on the
+ * local one. VS Code does not decode the relative path, so it stays unencoded inside `<>`.
+ * @param {string} url
+ * @param {vscode.Uri} documentUri
+ */
+function markdownDestination(url, documentUri) {
+    let destination;
+    if (hasScheme(url) || url.startsWith("//")) {
+        destination = url.startsWith("//") ? "https:" + url : url;
+    } else {
+        const uri = urlToUri(url, documentUri);
+        if (!uri) return;
+        destination = uri.toString();
+        const baseUri = getBaseUri(documentUri);
+        // Drive letters differ in case between uris of the same Windows file
+        const drive = (p) => (/^\/[a-z]:/i.exec(p) || [""])[0].toLowerCase();
+        const lowerDrive = (p) => drive(p) + p.slice(drive(p).length);
+        const folder = path.posix.dirname(baseUri.path);
+        if (documentUri.scheme !== "untitled" && uri.scheme === baseUri.scheme && uri.authority === baseUri.authority && drive(uri.path) === drive(folder)) {
+            destination = path.posix.relative(lowerDrive(folder), lowerDrive(uri.path)) || path.posix.basename(uri.path);
+        }
+    }
+    return `<${destination.replace(/[<>\\]/g, "\\$&")}>`;
+}
+
+/**
+ * Markdown showing the image at `url` that links to it, or undefined for an invalid url.
+ * @param {string} url
  * @param {vscode.Uri} documentUri
  * @param {string} alt
  */
-function imageMarkdown(uri, documentUri, alt) {
-    let src = uri.toString();
-    if (uri.scheme === documentUri.scheme && uri.authority === documentUri.authority && documentUri.scheme !== "untitled") {
-        src = encodeURI(path.posix.relative(path.posix.dirname(documentUri.path), uri.path)) || ".";
-    }
-    src = src.replace(/[()]/g, c => encodeURIComponent(c));
-    const markdown = new vscode.MarkdownString(`[![${alt}](${src})](${src})`);
-    markdown.baseUri = documentUri;
+function imageMarkdown(url, documentUri, alt) {
+    const destination = markdownDestination(url, documentUri);
+    if (!destination) return;
+    const markdown = new vscode.MarkdownString(`[![${alt}](${destination})](${destination})`);
+    markdown.baseUri = getBaseUri(documentUri);
+    return markdown;
+}
+
+function linkMarkdown(url, documentUri) {
+    const destination = markdownDestination(url, documentUri);
+    if (!destination) return;
+    const markdown = new vscode.MarkdownString(`**[${url.replace(/[\\[\]*_`]/g, "\\$&")}](${destination})**`);
+    markdown.baseUri = getBaseUri(documentUri);
     return markdown;
 }
 
@@ -200,25 +293,53 @@ function htmlToSvg(height, width, html, css) {
 }
 
 const parser = (() => {
-    const processor = require('unified').unified()
-        .use(require('remark-parse').default)
-        .use(require('remark-frontmatter').default, ['yaml', 'toml'])
-        .use(require('remark-gfm').default)
-        .use(require('remark-math').default)
-        .use(require('remark-highlight-mark').remarkHighlightMark)
-        .freeze();
-    return (/** @type {string} */ text) => processor.parse(text);
+    const plugins = (frontmatter) => {
+        let processor = require('unified').unified().use(require('remark-parse').default);
+        if (frontmatter) {
+            processor = processor.use(require('remark-frontmatter').default, ['yaml', 'toml']);
+        }
+        return processor
+            .use(require('remark-gfm').default)
+            .use(require('remark-math').default)
+            .use(require('remark-highlight-mark').remarkHighlightMark)
+            .freeze();
+    };
+    const processors = [plugins(false), plugins(true)];
+    /**
+     * Front matter only exists at the start of a document; elsewhere `---` is a horizontal rule.
+     * @param {string} text
+     * @param {boolean} frontmatter
+     */
+    return (text, frontmatter) => processors[frontmatter ? 1 : 0].parse(text);
 })();
 
 const nodeToHtml = (() => {
     const { toHast } = require('mdast-util-to-hast');
     const { toHtml } = require('hast-util-to-html');
-    // The html ends up inside an svg image, which is parsed as XML: close void elements and
-    // write numeric character references only.
-    return (/** @type {import("mdast").Nodes} */ node) => toHtml(toHast(node), {
+    const handlers = {
+        highlight: (state, node) => ({ type: "element", tagName: "mark", properties: {}, children: state.all(node) }),
+        // An svg image cannot load other images
+        image: (state, node) => ({ type: "text", value: node.alt || "" }),
+    };
+    // The html ends up inside an svg image, which is parsed as XML: attributes need values, void
+    // elements are closed and only numeric character references are written.
+    const giveValues = (node) => {
+        if (node.properties) {
+            for (const [name, value] of Object.entries(node.properties)) {
+                if (value === true) {
+                    node.properties[name] = "";
+                } else if (value === false) {
+                    delete node.properties[name];
+                }
+            }
+        }
+        (node.children || []).forEach(giveValues);
+        return node;
+    };
+    return (/** @type {import("mdast").Nodes} */ node) => toHtml(giveValues(toHast(node, { handlers })), {
         closeSelfClosing: true,
         characterReferences: { useNamedReferences: false },
     });
 })();
 
-module.exports = { DefaultMap, memoize, urlToUri, imageMarkdown, cleanUrl, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage };
+module.exports = { DefaultMap, memoize, urlToUri, imageMarkdown, cleanUrl, tagRegEx, parseImgTag, svgToUri, htmlToSvg, parser, nodeToHtml, texToSvg, enableHoverImage };
