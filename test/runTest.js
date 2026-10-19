@@ -1,3 +1,5 @@
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { runTests } = require('@vscode/test-electron');
@@ -16,7 +18,8 @@ async function main() {
 		await runTests({
 			extensionDevelopmentPath,
 			extensionTestsPath,
-			launchArgs: [path.resolve(__dirname, 'fixtures'), '--disable-extensions', '--disable-workspace-trust'],
+			// A new profile each time, so that settings changed by a failed test do not stay
+			launchArgs: [path.resolve(__dirname, 'fixtures'), '--disable-extensions', '--disable-workspace-trust', `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'markless-test-'))}`],
 		});
 	} catch (err) {
 		console.error('Failed to run tests', err);

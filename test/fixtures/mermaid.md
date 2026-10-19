@@ -29,6 +29,11 @@ journey
 
 ```mermaid
 graph TD
+  A[Line 1<br>Line 2] --> B[Done&nbsp;now]
+```
+
+```mermaid
+graph TD
   this is not valid -->
 ```
 

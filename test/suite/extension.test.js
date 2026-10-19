@@ -79,9 +79,12 @@ suite('Markless', () => {
 		});
 
 		test('list bullets can be kept as typed (#7, #17)', async () => {
-			await rebuilt(() => vscode.workspace.getConfiguration('markless').update('listBullets', [], global));
-			assert.deepStrictEqual(ranges().filter(r => covers(r, 13, 0) || covers(r, 14, 4)), []);
-			await rebuilt(() => vscode.workspace.getConfiguration('markless').update('listBullets', undefined, global));
+			try {
+				await rebuilt(() => vscode.workspace.getConfiguration('markless').update('listBullets', [], global));
+				assert.deepStrictEqual(ranges().filter(r => covers(r, 13, 0) || covers(r, 14, 4)), []);
+			} finally {
+				await rebuilt(() => vscode.workspace.getConfiguration('markless').update('listBullets', undefined, global));
+			}
 			assert.ok(ranges().some(r => covers(r, 13, 0)));
 		});
 
@@ -115,8 +118,9 @@ suite('Markless', () => {
 				assert.ok(thread, `preview of line ${line}`);
 				const body = thread.comments[0].body;
 				assert.strictEqual(body.baseUri.toString(), document.uri.toString());
-				const src = /\]\(([^)]+)\)/.exec(body.value)[1];
-				assert.strictEqual(vscode.Uri.joinPath(document.uri, '..', decodeURI(src)).fsPath, path.join(fixtures, file));
+				// VS Code resolves the relative path against baseUri without decoding it
+				const src = /\]\(<([^>]*)>\)/.exec(body.value)[1];
+				assert.strictEqual(vscode.Uri.joinPath(document.uri, '..', src).fsPath, path.join(fixtures, file));
 			}
 		});
 
@@ -140,6 +144,62 @@ suite('Markless', () => {
 			await vscode.commands.executeCommand('markless.toggle');
 			await waitFor(() => ranges().length > 0 && api.imageThreadMap.size > 0, 'decorations');
 		});
+	});
+
+	suite('Edge cases', () => {
+		/** @type {vscode.TextDocument} */
+		let document;
+		suiteSetup(async () => {
+			document = await vscode.workspace.openTextDocument(path.join(fixtures, 'edge-cases.md'));
+			await show(document);
+		});
+		const threads = () => [...api.imageThreadMap.get(document.uri.toString()).values()].flat();
+
+		test('a bracketed url, which has no position in the tree, does not stop the rendering', () => {
+			const hidden = ranges(api.hideDecoration);
+			assert.ok(hidden.some(r => r.isEqual(new vscode.Range(2, 30, 2, 32))));
+		});
+
+		test('equations with \\tag', () => {
+			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(4, 0, 6, 2))));
+		});
+
+		test('task list checkboxes before markup', () => {
+			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(8, 0, 8, 5))), '- [ ]');
+			assert.ok(ranges().some(r => r.isEqual(new vscode.Range(9, 3, 9, 6))), '[x] after 1.');
+		});
+
+		test('<img> attributes', () => {
+			const line = threads().filter(t => t.range.start.line === 11);
+			assert.strictEqual(line.length, 1, 'the empty src has no preview');
+			assert.ok(line[0].comments[0].body.value.includes('(<images/pic with space.png>)'), line[0].comments[0].body.value);
+		});
+
+		test('tables: no markup drawn over them, images still previewed', () => {
+			const end = document.lineAt(15).text.length;
+			assert.deepStrictEqual(ranges().filter(r => r.start.line >= 13 && r.start.line <= 15).map(r => [r.start.line, r.start.character, r.end.line, r.end.character]), [[13, 0, 15, end]]);
+			assert.ok(threads().some(t => t.range.start.line === 15));
+		});
+
+		test('quotes in lists', () => {
+			for (const line of [20, 21]) {
+				assert.ok(ranges().some(r => r.isEqual(new vscode.Range(line, 4, line, 5))), `line ${line}`);
+			}
+		});
+
+		test('data: images', () => {
+			const thread = threads().find(t => t.range.start.line === 23);
+			assert.ok(thread.comments[0].body.value.includes('(<data:image/png;base64,iVBORw0KGgo=>)'));
+		});
+	});
+
+	test('mermaid diagrams with html in labels, and errors (#10)', async () => {
+		const document = await vscode.workspace.openTextDocument(path.join(fixtures, 'mermaid.md'));
+		await show(document);
+		for (const [start, end] of [[2, 5], [9, 15], [17, 27], [29, 32]]) {
+			await waitFor(() => ranges().some(r => r.isEqual(new vscode.Range(start, 0, end, 3))), `the diagram on lines ${start}-${end}`, 30000);
+		}
+		await waitFor(() => ranges().some(r => r.isEqual(new vscode.Range(34, 0, 34, 10))), 'the error of the invalid diagram', 30000);
 	});
 
 	test('large documents render math after line 500 (#22)', async () => {
@@ -170,9 +230,12 @@ suite('Markless', () => {
 		assert.strictEqual(api.getLineHeight(1.5, 14), 21);
 		assert.strictEqual(api.getLineHeight(30, 14), 30);
 		assert.strictEqual(api.getLineHeight(0, 4), 8);
-		await vscode.workspace.getConfiguration('editor').update('lineHeight', 26, global);
-		await waitFor(() => api.state.lineHeight === 26, 'the new line height');
-		await vscode.workspace.getConfiguration('editor').update('lineHeight', undefined, global);
+		try {
+			await vscode.workspace.getConfiguration('editor').update('lineHeight', 26, global);
+			await waitFor(() => api.state.lineHeight === 26, 'the new line height');
+		} finally {
+			await vscode.workspace.getConfiguration('editor').update('lineHeight', undefined, global);
+		}
 		await waitFor(() => api.state.lineHeight === api.getLineHeight(0, api.state.fontSize), 'the default line height');
 	});
 });
