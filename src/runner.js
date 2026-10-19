@@ -1,6 +1,8 @@
 const { state } = require('./state');
 const { parser, imageMarkdown, DefaultMap } = require('./util');
+const { getDefinitions } = require('./parser');
 const { getBlockStarts, getParseRange } = require('./parse-range');
+const { disposeUnusedImages, isImageDecoration } = require('./common-decorations');
 const vscode = require('vscode')
 
 const { addInlineImages, removeInlineImages, imageThreadMap } = (() => {
@@ -101,16 +103,53 @@ function addDecorationRange(decoration, range, reveal) {
 function setDecorations() {
     const editor = state.activeEditor;
     const cursorDisables = state.config.get('cursorDisables');
+    // Ranges last set on the editor, so that a decoration is only set again when they change:
+    // images are a decoration per line, and each setDecorations is a message to the window. After
+    // an edit only images are compared, since VS Code also moves the ranges it has.
+    const version = editor.document.version;
+    if (!state.setRanges.has(editor)) {
+        state.setRanges.set(editor, new Map());
+    }
+    const setRanges = state.setRanges.get(editor);
+    const edited = setRanges.version !== version;
+    setRanges.version = version;
     for (const [decoration, ranges] of state.decorationRanges) {
         // console.log("decoration RANGES", [decoration, ranges]);
         let shown = ranges;
         if (cursorDisables && !state.persistentDecorations.has(decoration)) {
             shown = ranges.filter(([, reveal]) => !editor.selections.some(selection => selection.intersection(reveal)));
         }
-        editor.setDecorations(decoration, shown.map(([range]) => range));
+        const key = shown.map(([range]) => `${range.start.line},${range.start.character},${range.end.line},${range.end.character}`).join(" ");
+        if (setRanges.get(decoration) !== key || (edited && !isImageDecoration(decoration))) {
+            editor.setDecorations(decoration, shown.map(([range]) => range));
+            setRanges.set(decoration, key);
+        }
         state.appliedDecorations.add(decoration);
         if (ranges.length == 0) {
             state.decorationRanges.delete(decoration); // Unused decoration. Still exist in memoized decoration provider
+        }
+    }
+    state.editorDecorations.set(editor, new Set(state.decorationRanges.keys()));
+}
+
+/**
+ * Dispose the images that are neither in the current parse nor shown in another visible editor.
+ */
+function disposeImages() {
+    const visible = new Set(vscode.window.visibleTextEditors);
+    const shown = new Set();
+    for (const [editor, decorations] of state.editorDecorations) {
+        if (visible.has(editor)) {
+            decorations.forEach(decoration => shown.add(decoration));
+        } else {
+            state.editorDecorations.delete(editor);
+            state.setRanges.delete(editor);
+        }
+    }
+    for (const decoration of disposeUnusedImages(shown)) {
+        state.appliedDecorations.delete(decoration);
+        for (const setRanges of state.setRanges.values()) {
+            setRanges.delete(decoration);
         }
     }
 }
@@ -126,8 +165,9 @@ function visitNodes(node) {
         let [curNode, listLevel, parent, inTable] = stack.pop()
         const decorators = state.types.get(curNode.type);
         const position = curNode.position;
-        // Nodes made up by the parser, like some autolinks, have no position
-        if (decorators && position) {
+        // Nodes made up by the parser, like some autolinks, have no position. Nodes after
+        // textLength are the definitions added to resolve references.
+        if (decorators && position && position.start.offset < state.textLength) {
             revealRange = posToRange(position.start.offset, position.end.offset);
             for (const dec of decorators) {
                 // A rendered table is one image: the markup in its cells is not decorated on top
@@ -224,11 +264,18 @@ function updateDecorations() {
         state.decorationRanges.set(decoration, []); // Reduce failed lookups instead of .clear()
     }
     state.imageList = [];
+    if (!state.definitions || state.definitions.document !== document || state.definitions.version !== document.version) {
+        state.definitions = { document, version: document.version, urls: getDefinitions(line => document.lineAt(line).text, document.lineCount) };
+    }
+    // A part of a long document gets the definitions of the whole one, so that its references resolve
+    const definitionLines = lines && state.definitions.urls.size ? "\n\n" + [...state.definitions.urls.keys()].map(label => `[${label.replace(/[\\[\]]/g, "\\$&")}]: x`).join("\n") : "";
     const pending = [];
     try {
         for (const [start, end] of lines || [[0, document.lineCount]]) {
             const range = lines && new vscode.Range(start, 0, end, 0);
-            state.text = document.getText(range);
+            const text = document.getText(range);
+            state.text = text + definitionLines;
+            state.textLength = text.length;
             state.offset = range ? document.offsetAt(range.start) : 0;
             pending.push(...visitNodes(parser(state.text, state.offset === 0)));
         }
@@ -238,6 +285,7 @@ function updateDecorations() {
     }
     setDecorations();
     addInlineImages(document);
+    disposeImages();
     // Diagrams are shown as each of them is ready
     for (const promise of pending) {
         promise.then(() => {
@@ -261,6 +309,7 @@ function clearDecorations(editor) {
         for (const decoration of state.appliedDecorations) {
             visibleEditor.setDecorations(decoration, []);
         }
+        state.setRanges.delete(visibleEditor);
     }
     if (!editor) {
         state.appliedDecorations.clear();
