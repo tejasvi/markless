@@ -19,14 +19,35 @@ const text = undefined;
 const context = undefined;
 
 /**
- * @type {Map<import('vscode').TextEditorDecorationType, import('vscode').Range[]>}
+ * Ranges of each decoration in the parsed text, with the range around which the cursor reveals it
+ * @type {Map<import('vscode').TextEditorDecorationType, [import('vscode').Range, import('vscode').Range][]>}
  */
 const decorationRanges = undefined;
 
 /**
- * @type {(() => void)[]}
+ * Decorations set on an editor since they were last cleared from all editors
+ * @type {Set<import('vscode').TextEditorDecorationType>}
  */
-const decorators = undefined;
+const appliedDecorations = new Set();
+
+/**
+ * Decorations that only style the text (code block background, highlight) and stay when the
+ * cursor is inside them.
+ * @type {Set<import('vscode').TextEditorDecorationType>}
+ */
+const persistentDecorations = new Set();
+
+/**
+ * The parse behind decorationRanges: editor, document version and parsed lines
+ * @type {{editor: import('vscode').TextEditor, key: string, version: number, lines: [number, number][] | undefined} | undefined}
+ */
+const build = undefined;
+
+/**
+ * Lines where parsing a long document can start, for one version of it
+ * @type {{document: import('vscode').TextDocument, version: number, starts: number[]} | undefined}
+ */
+const blockStarts = undefined;
 
 /**
  * @type {import('vscode').WorkspaceConfiguration}
@@ -54,22 +75,12 @@ const fontFamily = undefined;
 const lineHeight = undefined;
 
 /**
- * @type {import('vscode').Selection}
- */
-const selection = undefined;
-
-/**
  * @type {boolean}
  */
 const enabled = undefined;
 
 /**
- * @type {number}
- */
-const changeRangeOffset = undefined;
-
-/**
- * @type {any}//Map<string, (start: number, end: number, node?: import("unist").Node, listLevel?: number) => void>}
+ * @type {Map<string, ((start: number, end: number, node?: any, listLevel?: number, parent?: any) => void | Promise<void>)[]>}
  */
 const types = undefined;
 
@@ -95,19 +106,20 @@ const state = {
     text,
     context,
     decorationRanges,
+    appliedDecorations,
+    persistentDecorations,
+    build,
+    blockStarts,
     darkMode,
     fontSize,
     fontFamily,
     lineHeight,
-    decorators,
     config,
-    selection,
     enabled,
     types,
     autoImagePreview,
     commentController,
     imageList,
-    changeRangeOffset
 };
 
 module.exports = { state };

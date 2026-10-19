@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "esbuild",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "build",
+			"detail": "npm run -S esbuild-base -- --sourcemap"
+		}
+	]
+}

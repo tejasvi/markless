@@ -3,9 +3,9 @@
 	"publisher": "tejasvi",
 	"displayName": "Markless",
 	"description": "Inline markdown preview.  Vim mode and WYSIWYG mermaid, latex and image rendering.",
-	"version": "1.0.2",
+	"version": "1.1.0",
 	"engines": {
-		"vscode": "^1.56.0"
+		"vscode": "^1.82.0"
 	},
 	"license": "MIT",
 	"categories": [
@@ -44,7 +44,7 @@
 				{
 					"id": "markless",
 					"icon": "assets/activityBar.svg",
-					"title": ""
+					"title": "Markless"
 				}
 			]
 		},
@@ -52,8 +52,8 @@
 			"markless": [
 				{
 					"type": "webview",
-					"id": "test.webview",
-					"name": "",
+					"id": "markless.mermaid",
+					"name": "Mermaid renderer",
 					"visibility": "visible"
 				}
 			]
@@ -66,10 +66,6 @@
 			}
 		],
 		"commands": [
-			{
-				"command": "test.eval",
-				"title": "Eval webview"
-			},
 			{
 				"command": "markless.toggle",
 				"title": "Toggle Inline Preview",
@@ -99,6 +95,11 @@
 						"type": "boolean",
 						"default": true
 					},
+					"markless.highlight": {
+						"markdownDescription": "Highlight `==marked text==`",
+						"type": "boolean",
+						"default": true
+					},
 					"markless.heading": {
 						"description": "Decorate headings",
 						"type": "boolean",
@@ -111,6 +112,11 @@
 					},
 					"markless.inlineCode": {
 						"description": "Decorate inline code",
+						"type": "boolean",
+						"default": true
+					},
+					"markless.codeBlock": {
+						"description": "Decorate fenced and indented code blocks",
 						"type": "boolean",
 						"default": true
 					},
@@ -138,6 +144,30 @@
 						"description": "Decorate lists",
 						"type": "boolean",
 						"default": true
+					},
+					"markless.listBullets": {
+						"markdownDescription": "Symbols shown in place of the `-`, `*` and `+` markers of unordered list items, one per nesting level (repeating). For example `[\"•\", \"◦\", \"▪\"]`, or `[]` to keep the markers as typed. Ordered lists keep their numbers.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [
+							"❧",
+							"☯",
+							"♠",
+							"❀",
+							"♚",
+							"☬",
+							"♣",
+							"♥",
+							"🙤",
+							"⚜",
+							"⚛",
+							"⛇",
+							"⚓",
+							"☘",
+							"☔"
+						]
 					},
 					"markless.quote": {
 						"description": "Decorate quotes",
@@ -171,39 +201,54 @@
 					}
 				}
 			}
+		],
+		"colors": [
+			{
+				"id": "markless.highlightBackground",
+				"description": "Background of ==highlighted== text",
+				"defaults": {
+					"dark": "#ffd70040",
+					"light": "#fff20080",
+					"highContrast": "#ffd70066",
+					"highContrastLight": "#fff20080"
+				}
+			}
 		]
 	},
 	"dependencies": {
-		"cheerio": "^1.0.0-rc.9",
-		"hast-util-to-html": "^7.1.3",
-		"mathjax-full": "^3.1.4",
-		"mdast-util-to-hast": "^10.2.0",
-		"mermaid": "^8.10.1",
-		"remark-gfm": "^1.0.0",
-		"remark-math": "^4.0.0",
-		"remark-parse": "^9.0.0",
-		"unified": "^9.2.1"
+		"hast-util-to-html": "^9.0.5",
+		"mathjax-full": "^3.2.2",
+		"mdast-util-to-hast": "^13.2.1",
+		"mdast-util-to-string": "^4.0.0",
+		"mermaid": "^11.17.2",
+		"remark-frontmatter": "^5.0.0",
+		"remark-gfm": "^4.0.1",
+		"remark-highlight-mark": "^1.4.0",
+		"remark-math": "^6.0.0",
+		"remark-parse": "^11.0.0",
+		"unified": "^11.0.5"
 	},
 	"scripts": {
-		"lint": "eslint .",
-		"pretest": "npm run lint",
-		"test": "node ./test/runTest.js",
+		"lint": "eslint src test",
+		"pretest": "npm run lint && npm run esbuild",
+		"test": "mocha --ui tdd test/unit && node ./test/runTest.js",
 		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
-		"esbuild-base": "esbuild ./src/extension.js --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
+		"esbuild-base": "node -e \"require('fs').mkdirSync('out',{recursive:true});require('fs').copyFileSync(require.resolve('mermaid/dist/mermaid.min.js'),'out/mermaid.min.js')\" && esbuild ./src/extension.js --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node --target=node18",
 		"esbuild": "npm run -S esbuild-base -- --sourcemap",
-		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
+		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
+		"package": "vsce package --no-dependencies"
 	},
 	"devDependencies": {
-		"@types/glob": "^7.1.3",
-		"@types/mocha": "^8.0.4",
-		"@types/node": "^12.11.7",
-		"@types/vscode": "^1.56.0",
-		"esbuild": "^0.12.5",
-		"eslint": "^7.19.0",
-		"glob": "^7.1.6",
-		"mocha": "^8.2.1",
-		"typescript": "^4.1.3",
-		"vscode-test": "^1.5.0"
+		"@eslint/js": "^10.0.1",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^26.6.5",
+		"@types/vscode": "^1.82.0",
+		"@vscode/test-electron": "^3.1.0",
+		"@vscode/vsce": "^4.0.0",
+		"esbuild": "^0.28.2",
+		"eslint": "^10.13.0",
+		"globals": "^17.13.0",
+		"mocha": "^12.0.3"
 	},
 	"__metadata": {
 		"id": "31b769d3-ba13-4af3-a7e8-5257e0df28b1",
