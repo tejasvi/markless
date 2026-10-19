@@ -8,6 +8,7 @@
 		{
 			"name": "Run Extension",
 			"type": "extensionHost",
+			"preLaunchTask": "build",
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
@@ -16,8 +17,11 @@
 		{
 			"name": "Extension Tests",
 			"type": "extensionHost",
+			"preLaunchTask": "build",
 			"request": "launch",
 			"args": [
+				"${workspaceFolder}/test/fixtures",
+				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--extensionTestsPath=${workspaceFolder}/test/suite/index"
 			]
