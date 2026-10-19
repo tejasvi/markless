@@ -204,6 +204,11 @@ Bracket pair colorizers interfere with the rendering. If you use one, install th
 
 ---
 
+# FAQ
+## Q: How to make Images Preview always maximized
+Set vscode settings `Workbench › Panel: Opens Maximized` as `always`.
+
+
 # **Differences**
 
 |  | Markless | Typora |

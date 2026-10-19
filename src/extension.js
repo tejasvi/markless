@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const { hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration } = require('./common-decorations');
 const { state } = require('./state');
-const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap, texToSvg, enableHoverImage } = require('./util');
+const {  memoize, nodeToHtml, svgToUri, htmlToSvg, DefaultMap, texToSvg, enableHoverImage, path } = require('./util');
 const { triggerUpdateDecorations, addDecoration, posToRange }  = require('./runner');
 const cheerio = require('cheerio');
 
@@ -325,7 +325,10 @@ function bootstrap(context) {
 			if (!match) return;
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), start + match[1].length + 2, end);
-			state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
+			const editor = vscode.window.activeTextEditor;
+			const mdFilePath = editor.document.uri.fsPath;
+			const imgPath =path.resolve(path.dirname(mdFilePath), node.url);
+			state.imageList.push([posToRange(start, end), imgPath, node.alt || " "]);
 		}]],
 		["emphasis", ["delete", (() => {
 			const strikeDecoration = vscode.window.createTextEditorDecorationType({
