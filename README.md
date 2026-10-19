@@ -54,6 +54,8 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 ![](assets/url.jpg)
 
+Reference links like `[text][1]`, with `[1]: url` elsewhere in the document, look the same. **Markless: Move Link URLs to the End of the Document** (also a quick fix on links) turns every `[text](url)` into such a link, which keeps long URLs from making lines wrap early.
+
 # **Images**
 
 (and gifs!)
@@ -206,7 +208,7 @@ Look under _Markless_ section to selectively turn off the eye candies.
 
 Bracket pair colorizers interfere with the rendering. If you use one, install the [patched version](https://github.com/tejasvi/rainbow-brackets-2) which excludes the markdown files.
 
-With word wrap on, lines with links wrap earlier than needed. VS Code decides where to wrap from the full text, including the hidden URLs, and extensions cannot change that.
+With word wrap on, lines with `[text](url)` links wrap earlier than needed: VS Code decides where to wrap from the full text, including the hidden URLs, and extensions cannot change that. Moving the URLs to the end of the document (see [URLs](#urls)) avoids it.
 
 -----------------------------------------------------------------------------------------------------------
 

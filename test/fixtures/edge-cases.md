@@ -24,3 +24,9 @@ $$
 ![data](data:image/png;base64,iVBORw0KGgo=)
 
 The end.
+
+Reference [the site][1], ![a picture][pic] and [Short].
+
+[1]: https://example.com
+[pic]: images/pic.png
+[short]: https://example.org

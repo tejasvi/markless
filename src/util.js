@@ -46,14 +46,20 @@ function enableHoverImage(context) {
             if (!vscode.workspace.getConfiguration("markless").get("hoverImage")) return;
             const line = document.lineAt(position).text;
             // console.log("HHOOVVEERR: ", line);
-            const regEx = new RegExp(`(!?)\\[[^\\]]*\\]\\(([^)]+)\\)|${tagRegEx.source}`, "g");
+            // [text](url), [text][label] (urls defined elsewhere) and <img> tags
+            const regEx = new RegExp(`(!?)\\[([^\\]]*)\\](?:\\(([^)]+)\\)|\\[([^\\]]*)\\])|${tagRegEx.source}`, "g");
             let match;
+            let definitions;
             while ((match = regEx.exec(line))) {
                 // console.log("HHOOVVEERR: match ", match);
                 if (match.index - 1 <= position.character && position.character <= match.index + match[0].length) {
                     const range = new vscode.Range(position.line, match.index, position.line, match.index + match[0].length + 1);
                     const image = match[1] === undefined ? parseImgTag(match[0]) : undefined;
-                    const url = image ? image.src : match[1] === undefined ? undefined : cleanUrl(match[2]);
+                    let url = image ? image.src : match[3] !== undefined ? cleanUrl(match[3]) : undefined;
+                    if (match[4] !== undefined) {
+                        definitions = definitions || getDefinitions(i => document.lineAt(i).text, document.lineCount);
+                        url = definitions.get(normalizeLabel(match[4] || match[2]));
+                    }
                     if (!url) continue;
                     const markdown = image || match[1].length == 1 ? imageMarkdown(url, document.uri, "hoverPreview") : linkMarkdown(url, document.uri);
                     if (markdown) {
@@ -292,26 +298,7 @@ function htmlToSvg(height, width, html, css) {
     </body></foreignObject></svg>`
 }
 
-const parser = (() => {
-    const plugins = (frontmatter) => {
-        let processor = require('unified').unified().use(require('remark-parse').default);
-        if (frontmatter) {
-            processor = processor.use(require('remark-frontmatter').default, ['yaml', 'toml']);
-        }
-        return processor
-            .use(require('remark-gfm').default)
-            .use(require('remark-math').default)
-            .use(require('remark-highlight-mark').remarkHighlightMark)
-            .freeze();
-    };
-    const processors = [plugins(false), plugins(true)];
-    /**
-     * Front matter only exists at the start of a document; elsewhere `---` is a horizontal rule.
-     * @param {string} text
-     * @param {boolean} frontmatter
-     */
-    return (text, frontmatter) => processors[frontmatter ? 1 : 0].parse(text);
-})();
+const { parser, normalizeLabel, getDefinitions } = require('./parser');
 
 const nodeToHtml = (() => {
     const { toHast } = require('mdast-util-to-hast');

@@ -75,6 +75,12 @@
 					"dark": "./assets/toggle.svg",
 					"light": "./assets/toggle.svg"
 				}
+			},
+			{
+				"command": "markless.moveUrlsToDefinitions",
+				"title": "Move Link URLs to the End of the Document",
+				"category": "Markless",
+				"enablement": "resourceLangId == markdown"
 			}
 		],
 		"menus": {
