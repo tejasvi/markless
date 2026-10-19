@@ -18,9 +18,11 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
       - [**Preview on hover**](#preview-on-hover)
       - [**Preview inline**](#preview-inline)
     - [**Inline code**](#inline-code)
+    - [**Code blocks**](#code-blocks)
     - [**LaTeX**](#latex)
       - [**Live preview**](#live-preview)
     - [**Emphasis**](#emphasis)
+    - [**Highlight**](#highlight)
     - [**Blockquote**](#blockquote)
     - [**Horizontal rule**](#horizontal-rule)
     - [**HTML tags**](#html-tags)
@@ -28,12 +30,15 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
     - [**Task list**](#task-list)
     - [**Mermaid**](#mermaid)
     - [**Table**](#table)
+    - [**Front matter**](#front-matter)
     - [**Reveal source**](#reveal-source)
     - [**Performance**](#performance)
     - [**Vim bindings**](#vim-bindings)
     - [**Spec compliant**](#spec-compliant)
 - [**Extension Settings**](#extension-settings)
 - [**Known Issues**](#known-issues)
+- [**FAQ**](#faq)
+- [**Contributing**](#contributing)
 - [**Relevant extensions**](#relevant-extensions)
 - [**Typora equivalents**](#typora-equivalents)
 - [**Differences**](#differences)
@@ -53,6 +58,8 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 (and gifs!)
 
+Paths are relative to the markdown file, or to the workspace folder when they start with `/`, as in the built-in markdown preview. Images in HTML `<img>` tags are shown too.
+
 ## **Preview on hover**
 
 ![](assets/hover.jpg)
@@ -64,6 +71,10 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 # **Inline code**
 
 ![](assets/inline-code.jpg)
+
+# **Code blocks**
+
+![](assets/code-block.jpg)
 
 # **LaTeX**
 
@@ -78,6 +89,12 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 # **Emphasis**
 
 ![](assets/emphasis.jpg)
+
+# **Highlight**
+
+![](assets/highlight.jpg)
+
+`==text==` is highlighted. The color can be changed with `markless.highlightBackground` in `workbench.colorCustomizations`.
 
 # **Blockquote**
 
@@ -95,6 +112,8 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 ![](assets/list.jpg)
 
+Ordered lists keep their numbers. The symbols of unordered lists are set with `markless.listBullets`, for example `["•", "◦", "▪"]` for the usual round bullets or `[]` to keep the markers as typed.
+
 # **Task list**
 
 ![](assets/task-list.jpg)
@@ -103,11 +122,17 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 ![](assets/mermaid.jpg)
 
-Use `mermaid` as the language specifier in the code block.
+Use `mermaid` as the language specifier in the code block. A diagram is scaled to the lines of its code block; add lines to the block to make it bigger.
+
+Diagrams are drawn by a view in the Markless side bar, which is shown for a moment when the first diagram is rendered.
 
 # **Table**
 
 ![](assets/table.jpg)
+
+# **Front matter**
+
+YAML (`---`) and TOML (`+++`) front matter is left as it is.
 
 # **Reveal source**
 
@@ -181,6 +206,8 @@ Look under _Markless_ section to selectively turn off the eye candies.
 
 Bracket pair colorizers interfere with the rendering. If you use one, install the [patched version](https://github.com/tejasvi/rainbow-brackets-2) which excludes the markdown files.
 
+With word wrap on, lines with links wrap earlier than needed. VS Code decides where to wrap from the full text, including the hidden URLs, and extensions cannot change that.
+
 -----------------------------------------------------------------------------------------------------------
 
 # **Relevant extensions**
@@ -204,9 +231,19 @@ Bracket pair colorizers interfere with the rendering. If you use one, install th
 
 ---
 
-# FAQ
-## Q: How to make Images Preview always maximized
-Set vscode settings `Workbench › Panel: Opens Maximized` as `always`.
+# **FAQ**
+
+## The Comments panel opens when I open a file with images
+
+Image previews are comment threads, and VS Code opens the Comments panel for the first file with comments. Set `"comments.openView": "never"` to stop it.
+
+## How do I keep image previews collapsed?
+
+Set `"markless.inlineImage.autoPreview": false`. Each preview can then be expanded from the comment icon next to its line.
+
+# **Contributing**
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to build, debug and test the extension.
 
 
 # **Differences**
