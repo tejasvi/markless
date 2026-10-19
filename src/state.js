@@ -24,9 +24,17 @@ const context = undefined;
 const decorationRanges = undefined;
 
 /**
- * @type {(() => void)[]}
+ * Decorations that only style the text (code block background, highlight) and stay when the
+ * cursor is inside them.
+ * @type {Set<import('vscode').TextEditorDecorationType>}
  */
-const decorators = undefined;
+const persistentDecorations = new Set();
+
+/**
+ * Identifies the parse behind decorationRanges: document version and parsed lines.
+ * @type {{key: string} | undefined}
+ */
+const build = undefined;
 
 /**
  * @type {import('vscode').WorkspaceConfiguration}
@@ -54,22 +62,12 @@ const fontFamily = undefined;
 const lineHeight = undefined;
 
 /**
- * @type {import('vscode').Selection}
- */
-const selection = undefined;
-
-/**
  * @type {boolean}
  */
 const enabled = undefined;
 
 /**
- * @type {number}
- */
-const changeRangeOffset = undefined;
-
-/**
- * @type {any}//Map<string, (start: number, end: number, node?: import("unist").Node, listLevel?: number) => void>}
+ * @type {Map<string, ((start: number, end: number, node?: any, listLevel?: number, parent?: any) => void | Promise<void>)[]>}
  */
 const types = undefined;
 
@@ -95,19 +93,18 @@ const state = {
     text,
     context,
     decorationRanges,
+    persistentDecorations,
+    build,
     darkMode,
     fontSize,
     fontFamily,
     lineHeight,
-    decorators,
     config,
-    selection,
     enabled,
     types,
     autoImagePreview,
     commentController,
     imageList,
-    changeRangeOffset
 };
 
 module.exports = { state };
